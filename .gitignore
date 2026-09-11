@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build outputs
+dist/
+frontend/dist/
+mongodb-extract-temp/
+
+# Arquivos temporários
+mongodb-windows-x86_64.zip
+*.log
+
+# Env específico (manter backend/.env versionado para configuração)
+!backend/.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MongoDB data (não versionar dados)
+mongodb-bin/bin/mongod.exe
+mongodb-bin/bin/*.zip

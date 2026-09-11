@@ -1,0 +1,265 @@
+.auth-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(47, 111, 237, 0.1), transparent 40%),
+    var(--color-paper);
+}
+
+.ticket-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 860px;
+  min-height: 480px;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 30px 60px -25px rgba(20, 23, 27, 0.45);
+}
+
+/* ---------- Lado esquerdo: o "canhoto" ---------- */
+
+.ticket-stub {
+  flex: 0 0 268px;
+  background: linear-gradient(165deg, var(--color-ink-soft), var(--color-ink) 55%);
+  color: var(--color-text-on-ink);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: inset -1px 0 0 rgba(170, 180, 189, 0.25);
+}
+
+.ticket-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.ticket-number {
+  margin-top: 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+}
+
+.ticket-number-label {
+  font-size: 18px;
+  color: var(--color-silver);
+}
+
+.ticket-number-value {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ticket-tagline {
+  margin-top: 20px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--color-text-on-ink-dim);
+  max-width: 30ch;
+}
+
+.ticket-icon {
+  margin-top: auto;
+  color: var(--color-accent);
+  opacity: 0.9;
+}
+
+/* ---------- Costura perfurada entre as duas metades ---------- */
+
+.ticket-seam {
+  position: relative;
+  width: 0;
+  border-left: 2px dashed rgba(20, 23, 27, 0.18);
+}
+
+.ticket-notch {
+  position: absolute;
+  left: -13px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-paper);
+}
+
+.ticket-notch-start {
+  top: -13px;
+}
+
+.ticket-notch-end {
+  bottom: -13px;
+}
+
+/* ---------- Lado direito: formulário ---------- */
+
+.ticket-form-side {
+  flex: 1;
+  background: var(--color-paper-raised);
+  padding: 40px 44px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ticket-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border-on-paper);
+  margin-bottom: 28px;
+}
+
+.ticket-tab {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 10px 4px 14px;
+  margin-right: 24px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-on-paper-dim);
+  border-bottom: 2px solid transparent;
+  transform: translateY(1px);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ticket-tab.is-active {
+  color: var(--color-text-on-paper);
+  border-bottom-color: var(--color-accent);
+}
+
+.ticket-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ticket-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-on-paper-dim);
+}
+
+.ticket-field input {
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  color: var(--color-text-on-paper);
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-on-paper);
+  background: #ffffff;
+}
+
+.ticket-field input::placeholder {
+  color: #a8aaad;
+}
+
+.ticket-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.ticket-submit {
+  margin-top: 6px;
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 13px 18px;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 600;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+
+.ticket-submit:hover {
+  filter: brightness(1.06);
+}
+
+.ticket-submit:active {
+  transform: translateY(1px);
+}
+
+.ticket-submit:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.ticket-footnote {
+  margin-top: auto;
+  padding-top: 18px;
+  font-size: 13px;
+  color: var(--color-text-on-paper-dim);
+}
+
+.ticket-link {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text-on-paper);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- Responsivo ---------- */
+
+@media (max-width: 640px) {
+  .ticket-card {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .ticket-stub {
+    flex: none;
+    padding: 28px 24px;
+  }
+
+  .ticket-icon {
+    display: none;
+  }
+
+  .ticket-seam {
+    width: auto;
+    height: 0;
+    border-left: none;
+    border-top: 2px dashed rgba(20, 23, 27, 0.18);
+  }
+
+  .ticket-notch {
+    top: -13px;
+    left: auto;
+  }
+
+  .ticket-notch-start {
+    left: -13px;
+  }
+
+  .ticket-notch-end {
+    left: auto;
+    right: -13px;
+    bottom: auto;
+  }
+
+  .ticket-form-side {
+    padding: 28px 24px 32px;
+  }
+}

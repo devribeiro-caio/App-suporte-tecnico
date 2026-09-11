@@ -1,0 +1,74 @@
+{
+  "name": "sistema-suporte-tecnico",
+  "version": "1.0.0",
+  "author": "Caio Ribeiro",
+  "description": "Sistema de Suporte Técnico - Desktop (Electron + MongoDB Embarcado)",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:frontend": "cd frontend && npm run build",
+    "build:electron": "electron-builder",
+    "build": "npm run build:frontend && npm run build:electron",
+    "dev": "node electron/main.js",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "30.5.1",
+    "electron-builder": "25.1.8"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.5.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "build": {
+    "appId": "com.formis.suporte-tecnico",
+    "productName": "Sistema de Suporte Técnico",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "backend/**/*",
+      "frontend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "mongodb-bin",
+        "to": "mongodb-bin",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "backend/.env",
+        "to": "backend/.env",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "backend/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "electron/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema de Suporte Técnico"
+    }
+  }
+}
