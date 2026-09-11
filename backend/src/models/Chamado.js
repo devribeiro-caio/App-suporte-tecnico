@@ -35,6 +35,13 @@ const chamadoSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Usuario",
       default: null,
+    },    iniciadoEm: {
+      type: Date,
+      default: null,
+    },
+    resolvidoEm: {
+      type: Date,
+      default: null,
     },    relatoResolucao: {
       type: String,
       trim: true,

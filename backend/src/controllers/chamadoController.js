@@ -141,6 +141,20 @@ const ChamadoController = {
         chamado.relatoResolucao = relatoResolucao.trim();
       }
 
+      const iniciandoAtendimento =
+        status === "em_andamento" && chamado.status !== "em_andamento";
+      const concluindoAtendimento =
+        status === "resolvido" && chamado.status !== "resolvido";
+
+      if (iniciandoAtendimento && !chamado.iniciadoEm) {
+        chamado.iniciadoEm = new Date();
+      }
+
+      if (concluindoAtendimento) {
+        if (!chamado.iniciadoEm) chamado.iniciadoEm = new Date();
+        chamado.resolvidoEm = new Date();
+      }
+
       if (status !== undefined) chamado.status = status;
       if (prioridade !== undefined) chamado.prioridade = prioridade;
       if (responsavel !== undefined) chamado.responsavel = responsavel;

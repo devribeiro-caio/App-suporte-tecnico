@@ -1,62 +1,98 @@
-# 🎫 Sistema de Chamados TI - Desktop
+# Sistema de Suporte Tecnico
 
-Sistema completo de gerenciamento de chamados técnicos desenvolvido em **Electron**, **React** e **Node.js**, com suporte a notificações em tempo real e banco de dados centralizado.
+Aplicativo desktop para abertura, acompanhamento e resolucao de chamados internos.
 
-## 🚀 Sobre o Projeto
+## Recursos
 
-Este software foi desenvolvido para otimizar o fluxo de atendimento de TI interno. Ele permite que colaboradores abram chamados de forma rápida e que a equipe de TI (Admin) receba e gerencie essas solicitações em tempo real, sem a necessidade de recarregar a aplicação.
+- Quadro Kanban com chamados abertos, em andamento e resolvidos.
+- Criacao de chamados entre os usuarios autorizados.
+- Registro do relato de resolucao.
+- Visualizacao completa de cada chamado pelo botao "Ver mais".
+- Relatorio por periodo com impressao ou exportacao em PDF.
+- Atualizacoes em tempo real com Socket.IO.
+- Aplicativo desktop empacotado com Electron.
 
-O sistema utiliza uma arquitetura onde o MongoDB pode rodar de forma **embarcada** (local) ou via **MongoDB Atlas** (nuvem), garantindo flexibilidade e segurança dos dados.
+## Tecnologias
 
-### Principais Funcionalidades
+- React e Vite
+- Node.js e Express
+- MongoDB e Mongoose
+- Socket.IO
+- Electron e electron-builder
 
-*   Tempo Real: Comunicação via Socket.IO para entrega instantânea de novos chamados entre diferentes máquinas.
-*   Multi-Máquina: Arquitetura preparada para rodar em diferentes computadores na mesma rede, conectando-se a um    servidor central.
-*   **Banco de Dados HíbridoIntegração com MongoDB Atlas (nuvem) para persistência global.
-*   **Interface Moderna:** Frontend desenvolvido com React e Vite para uma experiência fluida e responsiva.
-*   **Instalador Desktop:** Empacotado com Electron Builder para fácil distribuição no Windows via instalador NSIS.
+## Requisitos
 
-## 🛠️ Tecnologias Utilizadas
+- Node.js 18 ou superior
+- MongoDB local ou MongoDB Atlas
+- npm
 
-| Camada | Tecnologia |
-| :--- | :--- |
-| **Frontend** | React 18, Vite, CSS3 (Modern UI) |
-| **Backend** | Node.js, Express, Mongoose |
-| **Desktop** | Electron, Electron Builder |
-| **Banco de Dados** | MongoDB (Atlas / Embarcado) |
-| **Comunicação** | Socket.IO (Real-time) |
+## Instalacao
 
-## 📡 Configuração de Rede (Comunicação entre Máquinas)
+Instale as dependencias da raiz e do frontend:
 
-Para que a comunicação em tempo real funcione entre os computadores dos usuários e o computador do Admin, o sistema utiliza uma conexão centralizada:
+```bash
+npm install
+cd frontend
+npm install
+```
 
-1.  **Servidor Admin:** O computador da TI atua como o servidor central de eventos.
-2.  **Configuração de IP:** Na tela de login, utilize a opção **"Configurar Servidor (TI)"** para definir o IP do computador Admin (ex: `192.168.0.226`).
-3.  **Firewall:** Certifique-se de que a porta `3000 TCP` está aberta no computador do Admin para receber as conexões dos usuários.
+Crie o arquivo `backend/.env` com as variaveis do ambiente. Nao envie esse arquivo ao Git.
 
-## 📦 Como Buildar o Projeto
+Exemplo de variaveis necessarias:
 
-1.  **Setup do MongoDB:**
-    ```bash
-    node setup-mongo.js
-    ```
-2.  **Instalar Dependências:**
-    ```bash
-    npm install
-    cd frontend && npm install && cd ..
-    ```
-3.  **Gerar Instalador (.exe):**
-    ```bash
-    node build-all.js
-    ```
-    O instalador será gerado na pasta `dist/`.
+```env
+PORT=3001
+MONGODB_URI=sua_string_de_conexao
+JWT_SECRET=uma_chave_secreta
+JWT_EXPIRES_IN=8h
+ADMIN_EMAIL=suporte@formis.com
+ADMIN_SENHA=defina_uma_senha_segura
+ADMIN_NOME=Suporte Tecnico
+```
 
-## 📂 Estrutura do Projeto
+## Execucao
 
-*   `electron/`: Processo principal do Electron e gerenciamento de janelas.
-*   `backend/`: API Express, modelos de dados e controladores.
-*   `frontend/`: Interface do usuário em React.
-*   `mongodb-bin/`: Binários do MongoDB para execução embarcada.
+Para iniciar o aplicativo em desenvolvimento:
 
----
-Desenvolvido por Caio Ribeiro 
+```bash
+npm run dev
+```
+
+Para executar o backend separadamente:
+
+```bash
+cd backend
+npm start
+```
+
+Para executar o frontend no navegador:
+
+```bash
+cd frontend
+npm run dev
+```
+
+## Build e instalador
+
+Para gerar os arquivos de producao:
+
+```bash
+npm run build
+```
+
+Para gerar o instalador Windows e a versao portatil:
+
+```bash
+node build-installer.js
+```
+
+Os arquivos gerados ficam na pasta `dist/`.
+
+## Usuarios autorizados
+
+O sistema foi configurado para os usuarios:
+
+- `suporte@formis.com`
+- `laboratorio@formis.com.br`
+
+Ambos utilizam perfil de administrador e podem abrir chamados um para o outro.

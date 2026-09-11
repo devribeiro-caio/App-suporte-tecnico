@@ -413,3 +413,7 @@
 
 .chamado-titulo { overflow-wrap: anywhere; }
 .chamado-ver-mais { display: inline-flex; align-items: center; min-height: 28px; }
+
+.chamado-tempo { display:flex; align-items:center; justify-content:space-between; margin:0 0 10px; padding:8px 10px; border-radius:6px; background:#f0f5ff; color:#1e4fb5; font-size:12px; }
+.chamado-tempo strong { font-family:var(--font-mono); font-size:13px; }
+.chamado-tempo-resolvido { background:rgba(47,191,143,0.1); color:#177858; }

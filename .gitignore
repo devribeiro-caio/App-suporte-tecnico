@@ -26,3 +26,7 @@ Thumbs.db
 # MongoDB data (não versionar dados)
 mongodb-bin/bin/mongod.exe
 mongodb-bin/bin/*.zip
+
+electron-v30.5.1-win32-x64.zip
+dist/
+frontend/dist/
