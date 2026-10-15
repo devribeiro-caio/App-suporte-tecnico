@@ -1,5 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
+const Usuario = require("../models/Usuario");
+const { normalizarEmail } = require("./usuariosPermitidos");
 
 let io = null;
 
@@ -20,7 +22,7 @@ function setupSocket(server) {
     pingInterval: 25000,
   });
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
 
     if (!token) {
@@ -30,12 +32,25 @@ function setupSocket(server) {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      let email = normalizarEmail(decoded.email);
+      let perfil = decoded.perfil;
+      if (!email) {
+        const usuarioAtual = await Usuario.findById(decoded.id).select("email").lean();
+        email = normalizarEmail(usuarioAtual?.email);
+      }
+      if (ehUsuarioSomenteDestinatario(email)) {
+        if (perfil !== "usuario") {
+          await Usuario.updateOne({ _id: decoded.id }, { $set: { perfil: "usuario" } });
+        }
+        perfil = "usuario";
+      }
       socket.usuario = {
         id: decoded.id,
         nome: decoded.nome,
-        perfil: decoded.perfil,
+        email,
+        perfil,
       };
-      console.log(`[Socket] Auth OK para: ${decoded.nome || decoded.id} (${decoded.perfil})`);
+      console.log(`[Socket] Auth OK para: ${decoded.nome || decoded.id} (${perfil})`);
       next();
     } catch (err) {
       console.log("[Socket] Auth falhou:", err.message);
@@ -45,6 +60,10 @@ function setupSocket(server) {
 
   io.on("connection", (socket) => {
     console.log(`[Socket] Cliente conectado: ${socket.usuario.nome || socket.usuario.id} (${socket.usuario.perfil}) — Socket ID: ${socket.id}`);
+    socket.join(`usuario:${socket.usuario.id}`);
+    if (["admin", "tecnico"].includes(socket.usuario.perfil)) {
+      socket.join("equipe:suporte");
+    }
 
     socket.on("disconnect", () => {
       console.log(`[Socket] Cliente desconectado: ${socket.usuario.id}`);
@@ -68,5 +87,19 @@ function getIO() {
   return io;
 }
 
-module.exports = { setupSocket, getIO };
+function emitirChamado(evento, chamado, dados = chamado) {
+  const salas = new Set(["equipe:suporte"]);
+  const idDe = (participante) => {
+    if (!participante) return null;
+    return String(participante._id || participante.id || participante);
+  };
 
+  for (const participante of [chamado?.solicitante, chamado?.destinatario]) {
+    const id = idDe(participante);
+    if (id) salas.add(`usuario:${id}`);
+  }
+
+  getIO().to([...salas]).emit(evento, dados);
+}
+
+module.exports = { setupSocket, getIO, emitirChamado };

@@ -2,11 +2,24 @@
 // É chamado uma vez ao subir o servidor (ver server.js).
 
 const Usuario = require("../models/Usuario");
+const { EMAIL_USUARIO_SOMENTE_DESTINATARIO, ehUsuarioSomenteDestinatario, normalizarEmail } = require("./usuariosPermitidos");
 
 async function garantirAdminInicial() {
-  const emailAdmin = (process.env.ADMIN_EMAIL || "suporte@formis.com").toLowerCase().trim();
+  const emailAdmin = normalizarEmail(process.env.ADMIN_EMAIL || "administrativo@formis.com.br");
   const senhaAdmin = process.env.ADMIN_SENHA || "01020304";
-  const nomeAdmin = process.env.ADMIN_NOME || "Suporte Técnico";
+  const nomeAdmin = process.env.ADMIN_NOME || "Administrador";
+
+  const suporteExistente = await Usuario.findOne({ email: EMAIL_USUARIO_SOMENTE_DESTINATARIO });
+  if (suporteExistente && suporteExistente.perfil !== "usuario") {
+    suporteExistente.perfil = "usuario";
+    await suporteExistente.save();
+    console.log(`[SeedAdmin] Perfil de "${EMAIL_USUARIO_SOMENTE_DESTINATARIO}" corrigido para usuario.`);
+  }
+
+  if (ehUsuarioSomenteDestinatario(emailAdmin)) {
+    console.log(`[SeedAdmin] "${emailAdmin}" é usuário comum e não será promovido a admin.`);
+    return;
+  }
 
   // Verifica se o admin do .env já existe
   let adminExistente = await Usuario.findOne({ email: emailAdmin });

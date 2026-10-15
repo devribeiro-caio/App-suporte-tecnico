@@ -47,6 +47,10 @@ export default function DetalhesChamadoModal({ chamado, onFechar }) {
             <dd>{chamado.solicitante?.nome || "Nao informado"}</dd>
           </div>
           <div>
+            <dt>Destinatário</dt>
+            <dd>{chamado.destinatario?.nome || "Nao informado"}</dd>
+          </div>
+          <div>
             <dt>Responsavel</dt>
             <dd>{chamado.responsavel?.nome || "Nao atribuido"}</dd>
           </div>

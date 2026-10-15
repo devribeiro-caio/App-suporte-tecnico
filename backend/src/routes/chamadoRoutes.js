@@ -12,12 +12,8 @@ router.get("/", ChamadoController.listar);
 router.get("/:id", ChamadoController.buscarPorId);
 router.post("/", ChamadoController.criar); // qualquer perfil pode abrir chamado
 
-// Só técnico e admin podem atualizar status/responsável
-router.put(
-  "/:id",
-  roleMiddleware("tecnico", "admin"),
-  ChamadoController.atualizar
-);
+// O controller permite participantes atualizarem o próprio status do chamado.
+router.put("/:id", ChamadoController.atualizar);
 
 // Só admin pode excluir
 router.delete("/:id", roleMiddleware("admin"), ChamadoController.remover);

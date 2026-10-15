@@ -20,17 +20,17 @@
 [Socket] Cliente conectado: Admin Teste (admin) – Socket ID: xxxxx
 ```
 
-#### ✓ Variáveis de Ambiente
+#### ✓ Variáveis de Ambiente (exemplo sem credenciais)
 ```
-PORT=3000
-MONGO_URI=mongodb+srv://helpdeskformis:55Wformis3568@cluster0.yyf0tok.mongodb.net/?appName=Cluster0
-JWT_SECRET=dev_ribeiro_0608
+PORT=3001
+MONGO_URI=mongodb+srv://<usuario>:<senha>@<cluster>/<banco>
+JWT_SECRET=<segredo-forte-e-unico>
 JWT_EXPIRES_IN=8h
 ```
 
 #### ✓ Servidor Express está rodando?
-- Deve estar em `http://127.0.0.1:3000`
-- Verifique se a porta 3000 está disponível
+- Deve estar em `http://127.0.0.1:3001`
+- Verifique se a porta 3001 está disponível
 
 ---
 
@@ -40,13 +40,13 @@ JWT_EXPIRES_IN=8h
 
 **Console - Logs esperados:**
 ```
-[Socket] Tentando conectar em: http://127.0.0.1:3000
+[Socket] Tentando conectar em: http://127.0.0.1:3001
 [Socket] Conectado com sucesso! ID: xxxxx
 [Socket] Auth OK para: Admin Teste (admin)
 ```
 
 **Network - WebSocket:**
-- Procure por uma conexão WebSocket em `http://127.0.0.1:3000/socket.io/`
+- Procure por uma conexão WebSocket em `http://127.0.0.1:3001/socket.io/`
 - Status: `101 Switching Protocols` (significa que WebSocket está ativo)
 
 ---
@@ -104,12 +104,12 @@ JWT_EXPIRES_IN=8h
 1. Verifique se o backend está rodando
    ```bash
    # Procure por:
-   [Express] Servidor rodando em http://0.0.0.0:3000
+   [Express] Servidor rodando em http://0.0.0.0:3001
    ```
 
-2. Verifique se a porta 3000 está disponível
+2. Verifique se a porta 3001 está disponível
    ```powershell
-   netstat -ano | findstr :3000
+   netstat -ano | findstr :3001
    ```
 
 3. Verifique CORS no backend (`backend/src/config/socket.js`)
@@ -119,8 +119,8 @@ JWT_EXPIRES_IN=8h
 4. Tente conectar manualmente:
    ```javascript
    // No console do navegador (F12):
-   const socket = io('http://127.0.0.1:3000', { 
-     auth: { token: localStorage.getItem('token') } 
+   const socket = io('http://127.0.0.1:3001', {
+     auth: { token: localStorage.getItem('token') }
    });
    socket.on('connect', () => console.log('Conectado!'));
    socket.on('connect_error', (err) => console.error(err));
@@ -220,7 +220,7 @@ JWT_EXPIRES_IN=8h
 ### Logs Esperados no Frontend (DevTools → Console)
 
 ```
-[Socket] Tentando conectar em: http://127.0.0.1:3000
+[Socket] Tentando conectar em: http://127.0.0.1:3001
 [Socket] Conectado com sucesso! ID: xyz789
 [Socket] Novo chamado recebido: { _id: '...', titulo: '...' }
 [Áudio] Sistema de som desbloqueado.
@@ -295,7 +295,7 @@ Se encontrar problemas:
 
 ## ✅ Checklist Final
 
-- [ ] Backend rodando em `http://127.0.0.1:3000`
+- [ ] Backend rodando em `http://127.0.0.1:3001`
 - [ ] Socket.io conectando (DevTools → Console)
 - [ ] Novo chamado chega instantaneamente
 - [ ] Som de notificação toca

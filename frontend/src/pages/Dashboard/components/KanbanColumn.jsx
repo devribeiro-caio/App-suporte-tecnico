@@ -35,7 +35,7 @@ export default function KanbanColumn({
           <ChamadoCard
             key={chamado._id}
             chamado={chamado}
-            arrastavel={podeArrastar}
+            arrastavel={typeof podeArrastar === "function" ? podeArrastar(chamado) : podeArrastar}
             onDragStart={onDragStart}
             podeExcluir={podeExcluir}
             onExcluir={onExcluir}

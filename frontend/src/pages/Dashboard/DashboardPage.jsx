@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { ChamadoService } from "../../services/api";
+import { ChamadoService, UsuarioService } from "../../services/api";
 import {
   conectarSocket,
   onNovoChamado,
@@ -62,7 +62,7 @@ function tocarSomNotificacao() {
     tocarTom(660, 0, 0.2, 0.4);
     tocarTom(880, 0.15, 0.4, 0.4);
   } catch (e) {
-    console.warn("[Som] NÃƒÂ£o foi possÃƒÂ­vel tocar notificaÃƒÂ§ÃƒÂ£o:", e);
+    console.warn("[Som] Não foi possível tocar notificação:", e);
   }
 }
 
@@ -85,13 +85,108 @@ function tocarSomAtualizacao() {
     osc.start();
     osc.stop(ctx.currentTime + 0.2);
   } catch (e) {
-    console.warn("[Som] NÃƒÂ£o foi possÃƒÂ­vel tocar atualizaÃƒÂ§ÃƒÂ£o:", e);
+    console.warn("[Som] Não foi possível tocar notificação:", e);
   }
+}
+
+function escaparXml(valor) {
+  return String(valor ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function dataParaFiltroLocal(valor) {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return "";
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function dataParaTexto(valor) {
+  if (!valor) return "";
+  const [ano, mes, dia] = valor.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+function calcularCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function criarArquivoXlsx(arquivos) {
+  const encoder = new TextEncoder();
+  const partesLocais = [];
+  const partesCentrais = [];
+  let deslocamentoLocal = 0;
+
+  for (const [nome, conteudo] of arquivos) {
+    const nomeBytes = encoder.encode(nome);
+    const dados = encoder.encode(conteudo);
+    const crc = calcularCrc32(dados);
+    const cabecalhoLocal = new Uint8Array(30 + nomeBytes.length);
+    const localView = new DataView(cabecalhoLocal.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, dados.length, true);
+    localView.setUint32(22, dados.length, true);
+    localView.setUint16(26, nomeBytes.length, true);
+    cabecalhoLocal.set(nomeBytes, 30);
+    partesLocais.push(cabecalhoLocal, dados);
+
+    const cabecalhoCentral = new Uint8Array(46 + nomeBytes.length);
+    const centralView = new DataView(cabecalhoCentral.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, dados.length, true);
+    centralView.setUint32(24, dados.length, true);
+    centralView.setUint16(28, nomeBytes.length, true);
+    centralView.setUint32(42, deslocamentoLocal, true);
+    cabecalhoCentral.set(nomeBytes, 46);
+    partesCentrais.push(cabecalhoCentral);
+
+    deslocamentoLocal += cabecalhoLocal.length + dados.length;
+  }
+
+  const tamanhoCentral = partesCentrais.reduce((total, parte) => total + parte.length, 0);
+  const fimZip = new Uint8Array(22);
+  const fimView = new DataView(fimZip.buffer);
+  fimView.setUint32(0, 0x06054b50, true);
+  fimView.setUint16(8, arquivos.length, true);
+  fimView.setUint16(10, arquivos.length, true);
+  fimView.setUint32(12, tamanhoCentral, true);
+  fimView.setUint32(16, deslocamentoLocal, true);
+
+  return new Blob([...partesLocais, ...partesCentrais, fimZip], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
 export default function DashboardPage() {
   const { usuario, token, sair } = useAuth();
   const [chamados, setChamados] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [relatorioUsuarioEmail, setRelatorioUsuarioEmail] = useState("");
+  const [relatorioDataInicial, setRelatorioDataInicial] = useState("");
+  const [relatorioDataFinal, setRelatorioDataFinal] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
@@ -101,16 +196,46 @@ export default function DashboardPage() {
   const [novaNotificacao, setNovaNotificacao] = useState("");
   const [contadorNovos, setContadorNovos] = useState(0);
   const audioUnlocked = useRef(false);
+  const chamadosCarregadosRef = useRef(false);
 
-  const podeMoverCard = usuario?.perfil === "tecnico" || usuario?.perfil === "admin";
   const isAdmin = usuario?.perfil === "admin" || usuario?.perfil === "tecnico";
   const eAdministrador = usuario?.perfil === "admin";
+  const emailUsuarioAtual = usuario?.email?.trim().toLowerCase();
+  const idUsuarioAtual = String(usuario?.id || usuario?._id || "");
+  const podeMoverChamado = (chamado) => {
+    if (isAdmin) return true;
+    if (!idUsuarioAtual || !chamado) return false;
+    return [chamado.solicitante, chamado.destinatario].some((participante) => {
+      const idParticipante = participante?._id || participante?.id || participante;
+      return String(idParticipante ?? "") === idUsuarioAtual;
+    });
+  };
+  const chamadosDoRelatorio = chamados.filter((chamado) => {
+    const participaDoFiltroUsuario = !relatorioUsuarioEmail ||
+      [chamado.solicitante?.email, chamado.destinatario?.email].some(
+        (email) => email?.trim().toLowerCase() === relatorioUsuarioEmail
+      );
+    const dataChamado = dataParaFiltroLocal(chamado.createdAt);
+    const dentroDoPeriodo = (!relatorioDataInicial || dataChamado >= relatorioDataInicial) &&
+      (!relatorioDataFinal || dataChamado <= relatorioDataFinal);
+    return participaDoFiltroUsuario && dentroDoPeriodo;
+  });
+  const usuarioFiltroRelatorio = usuarios.find(
+    (item) => item.email?.trim().toLowerCase() === relatorioUsuarioEmail
+  );
+  const textoFiltroRelatorio = usuarioFiltroRelatorio
+    ? `${usuarioFiltroRelatorio.nome} (${usuarioFiltroRelatorio.email})`
+    : "Todos os usuários";
+  const textoPeriodoRelatorio = relatorioDataInicial || relatorioDataFinal
+    ? `${relatorioDataInicial ? dataParaTexto(relatorioDataInicial) : "início"} a ${relatorioDataFinal ? dataParaTexto(relatorioDataFinal) : "hoje"}`
+    : "Todo o período";
 
   const carregarChamados = useCallback(async () => {
     try {
       setErro("");
       const dados = await ChamadoService.listar(token);
       setChamados(dados);
+      chamadosCarregadosRef.current = true;
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -142,6 +267,21 @@ export default function DashboardPage() {
   }, [desbloquearAudio]);
 
   useEffect(() => {
+    if (!token) return undefined;
+    let ativo = true;
+    UsuarioService.listar(token)
+      .then((dados) => {
+        if (ativo) setUsuarios(dados);
+      })
+      .catch((e) => {
+        if (ativo) setErro(e.message);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
     if (token) {
       carregarChamados();
 
@@ -155,7 +295,11 @@ export default function DashboardPage() {
           return [novoChamado, ...atual];
         });
 
-        if (isAdmin) {
+        if (
+          isAdmin ||
+          novoChamado.solicitante?.email?.trim().toLowerCase() === emailUsuarioAtual ||
+          novoChamado.destinatario?.email?.trim().toLowerCase() === emailUsuarioAtual
+        ) {
           tocarSomNotificacao();
           setContadorNovos((prev) => prev + 1);
           setNovaNotificacao(`Novo chamado: ${novoChamado.titulo}`);
@@ -169,7 +313,11 @@ export default function DashboardPage() {
           atual.map((c) => (c._id === chamadoAtualizado._id ? chamadoAtualizado : c))
         );
 
-        if (isAdmin) {
+        const participanteAtualizado = [
+          chamadoAtualizado.solicitante?.email,
+          chamadoAtualizado.destinatario?.email,
+        ].some((email) => email?.trim().toLowerCase() === emailUsuarioAtual);
+        if (isAdmin || participanteAtualizado) {
           tocarSomAtualizacao();
         }
       });
@@ -183,8 +331,10 @@ export default function DashboardPage() {
       const intervalo = setInterval(async () => {
         try {
           const dados = await ChamadoService.listar(token);
+          const jaCarregados = chamadosCarregadosRef.current;
+          chamadosCarregadosRef.current = true;
           setChamados((atual) => {
-            if (dados.length > atual.length && isAdmin) {
+            if (jaCarregados && dados.length > atual.length) {
               tocarSomNotificacao();
               setContadorNovos((prev) => prev + (dados.length - atual.length));
               setNovaNotificacao(`Novo chamado recebido!`);
@@ -203,18 +353,17 @@ export default function DashboardPage() {
         desconectarSocket();
       };
     }
-  }, [token, carregarChamados, isAdmin]);
+  }, [token, carregarChamados, isAdmin, emailUsuarioAtual]);
 
   if (!usuario) {
     return <Navigate to="/" replace />;
   }
 
-  function gerarRelatorioPDF() {
-    const printWindow = window.open('', '_blank');
-    const abertos = chamados.filter(c => c.status === 'aberto').length;
-    const emAndamento = chamados.filter(c => c.status === 'em_andamento').length;
-    const resolvidos = chamados.filter(c => c.status === 'resolvido').length;
-    const total = chamados.length;
+  async function gerarRelatorioPDF() {
+    const abertos = chamadosDoRelatorio.filter(c => c.status === 'aberto').length;
+    const emAndamento = chamadosDoRelatorio.filter(c => c.status === 'em_andamento').length;
+    const resolvidos = chamadosDoRelatorio.filter(c => c.status === 'resolvido').length;
+    const total = chamadosDoRelatorio.length;
     const dataAtual = new Date().toLocaleDateString('pt-BR');
 
     const html = `
@@ -222,32 +371,28 @@ export default function DashboardPage() {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Relatorio de Chamados - Suporte Tecnico</title>
+        <title>Relatório de Chamados - Formis Instrumentos de Medição</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          h1 { color: #1e3a8a; margin-bottom: 5px; }
+          h1 { color: #155f9e; margin-bottom: 5px; }
           .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
           .stats { display: flex; gap: 20px; margin-bottom: 25px; }
           .stat-card { border: 1px solid #ccc; padding: 15px; border-radius: 6px; flex: 1; text-align: center; }
           .stat-card h3 { margin: 0 0 5px 0; font-size: 14px; color: #555; }
-          .stat-card p { margin: 0; font-size: 22px; font-weight: bold; color: #1e3a8a; }
+          .stat-card p { margin: 0; font-size: 22px; font-weight: bold; color: #155f9e; }
           table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
           th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-          th { background-color: #f3f4f6; color: #1f2937; }
+          th { background-color: #e7eff6; color: #12385d; }
           tr:nth-child(even) { background-color: #f9fafb; }
           .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
           .badge-aberto { background: #fee2e2; color: #991b1b; }
           .badge-andamento { background: #dbeafe; color: #1e40af; }
           .badge-resolvido { background: #dcfce7; color: #166534; }
-          @media print {
-            .no-print { display: none; }
-          }
         </style>
       </head>
       <body>
-        <h1>Relatorio de Chamados</h1>
-        <div class="subtitle">Sistema de Suporte Tecnico - Gerado em ${dataAtual} por ${usuario.nome}</div>
-<div class="no-print" style="display:flex;gap:12px;align-items:end;margin:18px 0;padding:12px;background:#f3f4f6;"><label>Data inicial<br><input id="dataInicio" type="date"></label><label>Data final<br><input id="dataFim" type="date"></label><button type="button" onclick="limparFiltro()">Limpar</button><button type="button" onclick="window.print()">Imprimir / Salvar PDF</button></div>
+        <h1>Relatório de Chamados — Formis</h1>
+        <div class="subtitle">Sistema Formis de Chamados - Gerado em ${dataAtual} por ${escaparXml(usuario.nome)} - Usuário: ${escaparXml(textoFiltroRelatorio)} - Período: ${escaparXml(textoPeriodoRelatorio)}</div>
 
         <div class="stats">
           <div class="stat-card">
@@ -270,31 +415,86 @@ export default function DashboardPage() {
 
         <h2>Detalhamento dos Chamados</h2>
         <table>
-          <thead><tr><th>Data</th><th>Titulo / Descricao</th><th>Solicitante</th><th>Prioridade</th><th>Status</th><th>Relato da resolucao</th></tr></thead>
+          <thead><tr><th>Data</th><th>Titulo / Descricao</th><th>Solicitante</th><th>Destinatario</th><th>Prioridade</th><th>Status</th><th>Relato da resolucao</th></tr></thead>
           <tbody>
-            ${chamados.map(c => `
-              <tr data-data="${c.createdAt.slice(0, 10)}" data-status="${c.status}">
+            ${chamadosDoRelatorio.map(c => `
+              <tr>
                 <td>${new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
-                <td><b>${c.titulo}</b><br><small style="color:#666">${c.descricao.substring(0, 60)}...</small></td>
-                <td>${c.solicitante?.nome || 'N/D'}</td>
-                <td>${c.prioridade || 'normal'}</td>
+                <td><b>${escaparXml(c.titulo)}</b><br><small style="color:#666">${escaparXml(c.descricao.substring(0, 60))}...</small></td>
+                <td>${escaparXml(c.solicitante?.nome || 'N/D')}</td>
+                <td>${escaparXml(c.destinatario?.nome || 'N/D')}</td>
+                <td>${escaparXml(c.prioridade || 'normal')}</td>
                 <td><span class="badge badge-${c.status === 'aberto' ? 'aberto' : c.status === 'em_andamento' ? 'andamento' : 'resolvido'}">${c.status.toUpperCase()}</span></td>
-                <td>${c.relatoResolucao || String.fromCharCode(8212)}</td>
+                <td>${escaparXml(c.relatoResolucao || String.fromCharCode(8212))}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
 
-        <div style="margin-top: 30px; text-align: center;" class="no-print">
-          <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Salvar como PDF / Imprimir</button>
-        </div>
-
-        <script>function atualizarFiltro(){const inicio=document.getElementById("dataInicio").value;const fim=document.getElementById("dataFim").value;let total=0,abertos=0,andamento=0,resolvidos=0;document.querySelectorAll("tbody tr").forEach((linha)=>{const data=linha.dataset.data;const visivel=(!inicio||data>=inicio)&&(!fim||data<=fim);linha.style.display=visivel?"":"none";if(!visivel)return;total++;if(linha.dataset.status==="aberto")abertos++;if(linha.dataset.status==="em_andamento")andamento++;if(linha.dataset.status==="resolvido")resolvidos++;});document.getElementById("total").textContent=total;document.getElementById("abertos").textContent=abertos;document.getElementById("andamento").textContent=andamento;document.getElementById("resolvidos").textContent=resolvidos;}function limparFiltro(){document.getElementById("dataInicio").value="";document.getElementById("dataFim").value="";atualizarFiltro();}document.getElementById("dataInicio").addEventListener("change",atualizarFiltro);document.getElementById("dataFim").addEventListener("change",atualizarFiltro);atualizarFiltro();</script>
       </body>
       </html>
     `;
-    printWindow.document.write(html);
-    printWindow.document.close();
+    if (!window.suporteDesktop?.salvarRelatorioPdf) {
+      setErro('O download direto de PDF está disponível no aplicativo desktop.');
+      return;
+    }
+
+    try {
+      await window.suporteDesktop.salvarRelatorioPdf(html);
+    } catch (e) {
+      setErro(e.message || 'Não foi possível salvar o relatório em PDF.');
+    }
+  }
+
+  function gerarRelatorioExcel() {
+    const statusLabels = {
+      aberto: "Aberto",
+      em_andamento: "Em andamento",
+      resolvido: "Resolvido",
+    };
+    const linhas = [
+      ["Relatório de Chamados"],
+      [`Gerado em ${new Date().toLocaleString("pt-BR")} por ${usuario.nome} — Usuário: ${textoFiltroRelatorio} — Período: ${textoPeriodoRelatorio}`],
+      [],
+      ["Data", "Título", "Descrição", "Solicitante", "Destinatário", "Prioridade", "Status", "Relato da resolução"],
+      ...chamadosDoRelatorio.map((chamado) => [
+        chamado.createdAt ? new Date(chamado.createdAt).toLocaleDateString("pt-BR") : "",
+        chamado.titulo || "",
+        chamado.descricao || "",
+        chamado.solicitante?.nome || "N/D",
+        chamado.destinatario?.nome || "N/D",
+        chamado.prioridade || "normal",
+        statusLabels[chamado.status] || chamado.status || "",
+        chamado.relatoResolucao || "—",
+      ]),
+    ];
+    const ultimaLinha = Math.max(4, linhas.length);
+    const linhasXml = linhas.map((linha, indice) => {
+      const numeroLinha = indice + 1;
+      const celulas = linha.map((valor, indiceColuna) => {
+        const referencia = `${String.fromCharCode(65 + indiceColuna)}${numeroLinha}`;
+        return `<c r="${referencia}" t="inlineStr"><is><t xml:space="preserve">${escaparXml(valor)}</t></is></c>`;
+      }).join("");
+      return `<row r="${numeroLinha}">${celulas}</row>`;
+    }).join("");
+    const planilhaXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:H${ultimaLinha}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="3" width="36" customWidth="1"/><col min="4" max="5" width="24" customWidth="1"/><col min="6" max="7" width="20" customWidth="1"/><col min="8" max="8" width="40" customWidth="1"/></cols><sheetData>${linhasXml}</sheetData><autoFilter ref="A4:H${ultimaLinha}"/></worksheet>`;
+    const arquivos = [
+      ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`],
+      ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Chamados" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`],
+      ["xl/worksheets/sheet1.xml", planilhaXml],
+    ];
+    const blob = criarArquivoXlsx(arquivos);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dataArquivo = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `relatorio-chamados-${dataArquivo}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function aoCriarChamado(dadosNovoChamado) {
@@ -308,10 +508,15 @@ export default function DashboardPage() {
       setModalAberto(false);
     } catch (e) {
       setErro(e.message);
+      throw e;
     }
   }
 
   function aoIniciarArrasto(e, chamado) {
+    if (!podeMoverChamado(chamado)) {
+      e.preventDefault();
+      return;
+    }
     setChamadoArrastado(chamado);
     e.dataTransfer.effectAllowed = "move";
   }
@@ -322,17 +527,31 @@ export default function DashboardPage() {
     const chamadoMovido = chamadoArrastado;
     setChamadoArrastado(null);
 
-    if (novoStatus === "resolvido") {
-      if (!eAdministrador) {
-        setErro("Apenas administradores podem concluir chamados.");
-        return;
-      }
+    if (!podeMoverChamado(chamadoMovido)) {
+      setErro("Somente o solicitante ou o destinatário podem mover este chamado.");
+      return;
+    }
 
+    if (!isAdmin && novoStatus === "aberto") {
+      setErro("Participantes podem mover o chamado para andamento ou resolvido.");
+      return;
+    }
+
+    if (!isAdmin && chamadoMovido.status === "resolvido") {
+      setErro("Um chamado resolvido não pode ser reaberto por participantes.");
+      return;
+    }
+
+    if (novoStatus === "resolvido") {
       setChamadoParaResolver(chamadoMovido);
       return;
     }
 
-    await atualizarStatus(chamadoMovido, novoStatus);
+    try {
+      await atualizarStatus(chamadoMovido, novoStatus);
+    } catch {
+      // atualizarStatus já apresenta o erro e restaura o estado anterior do card.
+    }
   }
 
   async function atualizarStatus(chamado, novoStatus, relatoResolucao) {
@@ -352,11 +571,14 @@ export default function DashboardPage() {
     );
 
     try {
-      await ChamadoService.atualizarStatus(
+      const atualizado = await ChamadoService.atualizarStatus(
         idMovido,
         novoStatus,
         token,
         relatoResolucao
+      );
+      setChamados((atual) =>
+        atual.map((item) => (item._id === idMovido ? atualizado : item))
       );
     } catch (e) {
       setErro(e.message);
@@ -391,13 +613,13 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <header className="dashboard-topbar">
         <div>
-          <span className="dashboard-eyebrow">FORMIS - CHAMADOS</span>
+          <span className="dashboard-eyebrow">FORMIS · INSTRUMENTOS DE MEDIÇÃO</span>
           <h1>Relatorio de Chamados</h1>
         </div>
 
         <div className="dashboard-topbar-actions">
           <span className="dashboard-perfil">{usuario.perfil}</span>
-          {contadorNovos > 0 && isAdmin && (
+          {contadorNovos > 0 && (
             <span
               className="badge-novos"
               onClick={() => setContadorNovos(0)}
@@ -416,9 +638,36 @@ export default function DashboardPage() {
               {contadorNovos} NOVOS
             </span>
           )}
-          {true && (
-            <button className="ticket-submit" onClick={gerarRelatorioPDF} style={{ background: "#059669" }} title="Gerar RelatÃƒÂ³rio em PDF">Relatorio PDF</button>
-          )}
+          <button
+            type="button"
+            className="relatorio-download relatorio-download-pdf"
+            onClick={gerarRelatorioPDF}
+            title="Baixar relatório em PDF"
+            aria-label="Baixar relatório em PDF"
+          >
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#fff" d="M9 3h19l11 11v31H9z" />
+              <path fill="#f7c8c4" d="M28 3v11h11z" />
+              <path fill="#e2231a" d="M24 15 12 36h5l7-12 7 12h5z" />
+              <text x="24" y="43" textAnchor="middle" fill="#e2231a" fontSize="7" fontWeight="700">PDF</text>
+            </svg>
+            <span>Baixar PDF</span>
+          </button>
+          <button
+            type="button"
+            className="relatorio-download relatorio-download-excel"
+            onClick={gerarRelatorioExcel}
+            title="Baixar relatório em Excel"
+            aria-label="Baixar relatório em Excel"
+          >
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <rect x="15" y="4" width="29" height="40" rx="3" fill="#217346" />
+              <path d="M25 4h16v40H25z" fill="#33a852" />
+              <path d="M4 12h25v24H4z" rx="3" fill="#185c37" />
+              <path d="m10 17 4.5 6.8L10 31h4l2.7-4.4 2.8 4.4h4l-4.6-7.2 4.4-6.8h-3.9l-2.6 4.2-2.7-4.2z" fill="#fff" />
+            </svg>
+            <span>Baixar Excel</span>
+          </button>
           <button className="ticket-submit" onClick={() => setModalAberto(true)}>
             + Novo chamado
           </button>
@@ -427,6 +676,58 @@ export default function DashboardPage() {
           </button>
         </div>
       </header>
+
+      <section className="relatorio-filtros" aria-label="Filtros do relatório">
+        <label className="relatorio-usuario-filtro">
+          <span>Usuário</span>
+          <select
+            value={relatorioUsuarioEmail}
+            onChange={(evento) => setRelatorioUsuarioEmail(evento.target.value)}
+            aria-label="Filtrar relatório por usuário"
+          >
+            <option value="">Todos os usuários</option>
+            {usuarios.map((item) => (
+              <option key={item._id} value={item.email.trim().toLowerCase()}>
+                {item.nome} — {item.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="relatorio-data-filtro">
+          <span>Data inicial</span>
+          <input
+            type="date"
+            value={relatorioDataInicial}
+            max={relatorioDataFinal || undefined}
+            onChange={(evento) => setRelatorioDataInicial(evento.target.value)}
+            aria-label="Data inicial do relatório"
+          />
+        </label>
+        <label className="relatorio-data-filtro">
+          <span>Data final</span>
+          <input
+            type="date"
+            value={relatorioDataFinal}
+            min={relatorioDataInicial || undefined}
+            onChange={(evento) => setRelatorioDataFinal(evento.target.value)}
+            aria-label="Data final do relatório"
+          />
+        </label>
+        <button
+          type="button"
+          className="filtros-limpar"
+          onClick={() => {
+            setRelatorioUsuarioEmail("");
+            setRelatorioDataInicial("");
+            setRelatorioDataFinal("");
+          }}
+        >
+          Limpar filtros
+        </button>
+        <span className="filtros-resultado" aria-live="polite">
+          {chamadosDoRelatorio.length} chamado{chamadosDoRelatorio.length === 1 ? "" : "s"} no relatório
+        </span>
+      </section>
 
       {novaNotificacao && (
         <div className="notification-toast">
@@ -455,7 +756,7 @@ export default function DashboardPage() {
               titulo={coluna.titulo}
               status={coluna.status}
               chamados={chamados.filter((c) => c.status === coluna.status)}
-              podeArrastar={podeMoverCard}
+              podeArrastar={podeMoverChamado}
               onDragStart={aoIniciarArrasto}
               onDrop={aoSoltarNaColuna}
               podeExcluir={eAdministrador}
@@ -470,6 +771,7 @@ export default function DashboardPage() {
         <NovoChamadoModal
           onFechar={() => setModalAberto(false)}
           usuario={usuario}
+          usuarios={usuarios}
           onCriar={aoCriarChamado}
         />
       )}

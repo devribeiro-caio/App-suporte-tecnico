@@ -3,8 +3,9 @@
 // Gerencia: MongoDB (embarcado) → Express (backend) → Frontend
 // ═══════════════════════════════════════════════════════════════
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, safeStorage } = require('electron');
 const path = require('path');
+const { fileURLToPath } = require('url');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const net = require('net');
@@ -15,6 +16,143 @@ const net = require('net');
 let mongoProcess = null;
 let httpServer = null;
 let mainWindow = null;
+
+ipcMain.handle('relatorio:salvar-pdf', async (event, html) => {
+  const urlSolicitante = event.senderFrame?.url || event.sender.getURL();
+  const remetenteConfiavel = urlSolicitante.startsWith('file://') ||
+    /^http:\/\/(127\.0\.0\.1|localhost):3001(?:\/|$)/.test(urlSolicitante);
+  if (!remetenteConfiavel) {
+    throw new Error('Origem não autorizada para gerar o relatório.');
+  }
+  if (typeof html !== 'string' || html.length > 25_000_000) {
+    throw new Error('O conteúdo do relatório é inválido ou excede o limite permitido.');
+  }
+
+  const hoje = new Date();
+  const dataArquivo = [hoje.getFullYear(), String(hoje.getMonth() + 1).padStart(2, '0'), String(hoje.getDate()).padStart(2, '0')].join('-');
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Salvar relatório em PDF',
+    defaultPath: path.join(app.getPath('downloads'), `relatorio-chamados-${dataArquivo}.pdf`),
+    filters: [{ name: 'Arquivo PDF', extensions: ['pdf'] }],
+  });
+  if (canceled || !filePath) return { cancelado: true };
+
+  const caminhoPdf = path.extname(filePath).toLowerCase() === '.pdf' ? filePath : `${filePath}.pdf`;
+  const janelaRelatorio = new BrowserWindow({
+    show: false,
+    width: 1200,
+    height: 900,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      javascript: false,
+    },
+  });
+
+  try {
+    await janelaRelatorio.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
+    const pdf = await janelaRelatorio.webContents.printToPDF({
+      pageSize: 'A4',
+      landscape: true,
+      printBackground: true,
+      margins: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+    });
+    await fs.promises.writeFile(caminhoPdf, pdf);
+    return { cancelado: false };
+  } finally {
+    if (!janelaRelatorio.isDestroyed()) janelaRelatorio.close();
+  }
+});
+
+const TEMPO_CREDENCIAIS_MS = 30 * 24 * 60 * 60 * 1000;
+
+function validarOrigemCredenciais(event) {
+  const url = event.senderFrame?.url || event.sender.getURL();
+  if (/^http:\/\/(127\.0\.0\.1|localhost):3001(?:\/|$)/.test(url)) return;
+
+  try {
+    const urlOrigem = new URL(url);
+    const arquivoOrigem = urlOrigem.protocol === 'file:' ? path.resolve(fileURLToPath(urlOrigem)) : '';
+    const arquivoFrontend = path.resolve(__dirname, '..', 'frontend', 'dist', 'index.html');
+    const mesmoArquivo = process.platform === 'win32'
+      ? arquivoOrigem.toLowerCase() === arquivoFrontend.toLowerCase()
+      : arquivoOrigem === arquivoFrontend;
+    if (arquivoOrigem && mesmoArquivo) return;
+  } catch {}
+
+  throw new Error('Origem não autorizada para acessar as credenciais salvas.');
+}
+
+function obterCaminhoCredenciaisLembradas() {
+  return path.join(app.getPath('userData'), 'credenciais-lembradas.enc');
+}
+
+ipcMain.handle('auth:salvar-credenciais-lembradas', async (event, credenciais) => {
+  validarOrigemCredenciais(event);
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('A criptografia segura do Windows não está disponível neste dispositivo.');
+  }
+
+  const email = typeof credenciais?.email === 'string' ? credenciais.email.trim().toLowerCase() : '';
+  const senha = credenciais?.senha;
+  if (!email || email.length > 320 || typeof senha !== 'string' || !senha || senha.length > 2048) {
+    throw new Error('Informe um login e uma senha válidos para lembrar neste dispositivo.');
+  }
+
+  const caminho = obterCaminhoCredenciaisLembradas();
+  await fs.promises.mkdir(path.dirname(caminho), { recursive: true });
+  const conteudoCriptografado = safeStorage.encryptString(JSON.stringify({
+    email,
+    senha,
+    salvoEm: Date.now(),
+  }));
+  await fs.promises.writeFile(caminho, conteudoCriptografado, { mode: 0o600 });
+  return { salvo: true };
+});
+
+ipcMain.handle('auth:obter-credenciais-lembradas', async (event) => {
+  validarOrigemCredenciais(event);
+  if (!safeStorage.isEncryptionAvailable()) return null;
+
+  const caminho = obterCaminhoCredenciaisLembradas();
+  let conteudoCriptografado;
+  try {
+    conteudoCriptografado = await fs.promises.readFile(caminho);
+  } catch (erro) {
+    if (erro.code === 'ENOENT') return null;
+    throw erro;
+  }
+
+  try {
+    const credenciais = JSON.parse(safeStorage.decryptString(conteudoCriptografado));
+    const idade = Date.now() - Number(credenciais.salvoEm);
+    if (
+      !credenciais.email ||
+      !credenciais.senha ||
+      !Number.isFinite(idade) ||
+      idade < 0 ||
+      idade >= TEMPO_CREDENCIAIS_MS
+    ) {
+      await fs.promises.unlink(caminho).catch(() => {});
+      return null;
+    }
+    return { email: credenciais.email, senha: credenciais.senha };
+  } catch {
+    await fs.promises.unlink(caminho).catch(() => {});
+    return null;
+  }
+});
+
+ipcMain.handle('auth:remover-credenciais-lembradas', async (event) => {
+  validarOrigemCredenciais(event);
+  try {
+    await fs.promises.unlink(obterCaminhoCredenciaisLembradas());
+  } catch (erro) {
+    if (erro.code !== 'ENOENT') throw erro;
+  }
+  return { removidas: true };
+});
 
 // ─────────────────────────────────────────────────────────────
 // 1. ENCONTRAR O BINÁRIO DO MONGODB
@@ -172,7 +310,8 @@ function iniciarServidorExpress() {
     // Determinar o MongoDB a usar:
     // - Se MONGO_URI do .env apontar para Atlas (mongodb+srv://), usa Atlas
     // - Caso contrário, usa o MongoDB local embarcado
-    const mongoUriEnv = process.env.MONGO_URI || '';
+    const mongoUriEnv = process.env.MONGO_URI || process.env.MONGODB_URI || '';
+    if (mongoUriEnv) process.env.MONGO_URI = mongoUriEnv;
     const usarAtlas = mongoUriEnv.startsWith('mongodb+srv://');
 
     if (usarAtlas) {
@@ -181,7 +320,7 @@ function iniciarServidorExpress() {
       // Mantém o MONGO_URI do .env (Atlas)
     } else {
       console.log('[Bootstrap] Usando MongoDB LOCAL (embarcado).');
-      process.env.MONGO_URI = 'mongodb://127.0.0.1:27017/sistema-chamados';
+      process.env.MONGO_URI = 'mongodb://127.0.0.1:27018/sistema-chamados';
     }
 
     process.env.PORT = '3001';
@@ -189,29 +328,31 @@ function iniciarServidorExpress() {
     process.env.ADMIN_SENHA = process.env.ADMIN_SENHA || 'mudar123';
 
     console.log(`[Bootstrap] Admin email: ${process.env.ADMIN_EMAIL}`);
-    console.log(`[Bootstrap] JWT_SECRET: ${process.env.JWT_SECRET ? 'definido' : 'usando padrão'}`);
+    if (!process.env.JWT_SECRET?.trim()) {
+      throw new Error('JWT_SECRET não configurado no .env do backend.');
+    }
+    console.log('[Bootstrap] JWT_SECRET configurado.');
 
     // Importar o backend
     const app = require('../backend/src/app');
     const conectarBanco = require('../backend/src/config/db');
     const garantirAdminInicial = require('../backend/src/config/seedAdmin');
 
-    console.log('[Express] Conectando ao MongoDB...');
-
-    conectarBanco()
-      .then(() => {
-        console.log('[Express] MongoDB conectado com sucesso.');
-        return garantirAdminInicial();
-      })
-      .then(() => {
-        console.log('[Express] Admin inicial verificado.');
-      })
-      .catch((err) => {
-        console.error('[Express] Erro ao conectar ao banco:', err.message);
-      });
-
     // Iniciar o servidor HTTP
-    httpServer = app.listen(3001, '0.0.0.0', () => {
+    httpServer = app.listen(3001, '0.0.0.0', async () => {
+      try {
+        console.log('[Express] Conectando ao MongoDB...');
+        await conectarBanco();
+        console.log('[Express] MongoDB conectado com sucesso.');
+        await garantirAdminInicial();
+        console.log('[Express] Admin inicial verificado.');
+      } catch (err) {
+        console.error('[Express] Erro ao conectar ao banco:', err.message);
+        reject(err);
+        httpServer.close();
+        return;
+      }
+
       console.log('[Express] Servidor rodando em http://0.0.0.0:3001');
 
       // Configurar Socket.io para real-time
@@ -245,6 +386,7 @@ function criarJanela() {
     icon: path.join(__dirname, 'icon.png'),
     show: false, // Mostrar só quando pronta
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       devTools: true,
@@ -347,7 +489,7 @@ app.on('ready', async () => {
         break;
       }
     }
-    const mongoUriEnv = process.env.MONGO_URI || '';
+    const mongoUriEnv = process.env.MONGO_URI || process.env.MONGODB_URI || '';
     const usarAtlas = mongoUriEnv.startsWith('mongodb+srv://');
 
     if (usarAtlas) {

@@ -1,18 +1,18 @@
 :root {
-  --color-ink: #0e2138;
-  --color-ink-soft: #16314f;
-  --color-paper: #e9ebee;
-  --color-paper-raised: #f6f7f8;
-  --color-accent: #2f6fed;
+  --color-ink: #12385d;
+  --color-ink-soft: #155f9e;
+  --color-paper: #eef2f6;
+  --color-paper-raised: #ffffff;
+  --color-accent: #0b68ad;
   --color-accent-ink: #ffffff;
-  --color-silver: #aab4bd;
+  --color-silver: #a9b7c4;
   --color-status: #2fbf8f;
   --color-danger: #ff6b6b;
-  --color-text-on-ink: #eef1f5;
-  --color-text-on-ink-dim: #8e9dae;
+  --color-text-on-ink: #f5f8fb;
+  --color-text-on-ink-dim: #c6d3df;
   --color-text-on-paper: #171b21;
   --color-text-on-paper-dim: #666e78;
-  --color-border-on-paper: rgba(23, 27, 33, 0.12);
+  --color-border-on-paper: rgba(18, 56, 93, 0.16);
 
   --font-display: "Space Grotesk", "Segoe UI", sans-serif;
   --font-body: "Inter", "Segoe UI", sans-serif;

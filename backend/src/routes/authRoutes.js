@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.post("/registrar", AuthController.registrar);
 router.post("/login", AuthController.login);
+router.get("/usuarios", authMiddleware, AuthController.listarUsuarios);
 
 // Rota protegida de exemplo pra registrar técnico/admin
 // (só funciona se quem chamar já estiver logado como admin)

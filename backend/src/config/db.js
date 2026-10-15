@@ -2,10 +2,13 @@ const mongoose = require("mongoose");
 
 async function conectarBanco() {
   try {
-    // Força o banco de dados dedicado ao suporte técnico
-    const uri = "mongodb+srv://helpdeskformis:55Wformis3568@cluster0.yyf0tok.mongodb.net/suporte_tecnico?appName=Cluster0";
+    const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    if (!uri) {
+      throw new Error("MONGO_URI ou MONGODB_URI não configurada.");
+    }
+
     await mongoose.connect(uri);
-    console.log("MongoDB conectado com sucesso ao banco: suporte_tecnico");
+    console.log("MongoDB conectado com sucesso.");
   } catch (erro) {
     console.error("Erro ao conectar no MongoDB:", erro.message);
     throw erro;

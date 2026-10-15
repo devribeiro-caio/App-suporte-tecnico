@@ -1,10 +1,18 @@
+const EMAIL_USUARIO_SOMENTE_DESTINATARIO = "suporte@formis.com";
+
 const EMAILS_ADMIN = [
-  "suporte@formis.com",
   "laboratorio@formis.com.br",
+  "vendas@formis.com",
+  "administrativo@formis.com.br",
+  "sac@formis.com.br",
 ];
 
 function normalizarEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function ehUsuarioSomenteDestinatario(email) {
+  return normalizarEmail(email) === EMAIL_USUARIO_SOMENTE_DESTINATARIO;
 }
 
 function ehAdministradorPermitido(email) {
@@ -13,6 +21,8 @@ function ehAdministradorPermitido(email) {
 
 module.exports = {
   EMAILS_ADMIN,
+  EMAIL_USUARIO_SOMENTE_DESTINATARIO,
   normalizarEmail,
+  ehUsuarioSomenteDestinatario,
   ehAdministradorPermitido,
 };

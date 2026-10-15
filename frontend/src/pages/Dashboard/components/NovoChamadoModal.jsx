@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 
-const USUARIOS_SUPORTE = [
-  { email: "suporte@formis.com", nome: "Suporte" },
-  { email: "laboratorio@formis.com.br", nome: "Laboratorio" },
-];
-
-export default function NovoChamadoModal({ usuario, onFechar, onCriar }) {
+export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onCriar }) {
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [prioridade, setPrioridade] = useState("media");
@@ -13,9 +8,10 @@ export default function NovoChamadoModal({ usuario, onFechar, onCriar }) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
+  const emailAtual = usuario?.email?.trim().toLowerCase();
   const destinatarios = useMemo(
-    () => USUARIOS_SUPORTE.filter((item) => item.email !== usuario?.email?.toLowerCase()),
-    [usuario?.email]
+    () => usuarios.filter((item) => item.email?.trim().toLowerCase() !== emailAtual),
+    [usuarios, emailAtual]
   );
 
   async function aoSubmeter(event) {
@@ -56,7 +52,9 @@ export default function NovoChamadoModal({ usuario, onFechar, onCriar }) {
               onChange={(event) => setDestinatarioEmail(event.target.value)}
               required
             >
-              <option value="">Selecione o destinatario</option>
+              <option value="">
+                {destinatarios.length ? "Selecione o destinatário" : "Nenhum outro usuário cadastrado"}
+              </option>
               {destinatarios.map((destinatario) => (
                 <option key={destinatario.email} value={destinatario.email}>
                   {destinatario.nome} - {destinatario.email}

@@ -1,6 +1,26 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
+const CHAVE_SESSAO = "sessao-chamados";
+const EMAIL_SUPORTE_USUARIO = "suporte@formis.com";
+
+function normalizarPerfilUsuario(usuario) {
+  if (usuario?.email?.trim().toLowerCase() === EMAIL_SUPORTE_USUARIO) {
+    return { ...usuario, perfil: "usuario" };
+  }
+  return usuario;
+}
+
+function tokenAindaValido(token) {
+  try {
+    const partePayload = token.split(".")[1];
+    const base64 = partePayload.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")));
+    return Number(payload.exp) * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
@@ -8,25 +28,41 @@ export function AuthProvider({ children }) {
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    const salvo = localStorage.getItem("sessao-chamados");
-    if (salvo) {
-      const { usuario, token } = JSON.parse(salvo);
-      setUsuario(usuario);
-      setToken(token);
+    try {
+      const salvo = localStorage.getItem(CHAVE_SESSAO) || sessionStorage.getItem(CHAVE_SESSAO);
+      if (salvo) {
+        const sessao = JSON.parse(salvo);
+        if (sessao.usuario && sessao.token && tokenAindaValido(sessao.token)) {
+          setUsuario(normalizarPerfilUsuario(sessao.usuario));
+          setToken(sessao.token);
+        } else {
+          localStorage.removeItem(CHAVE_SESSAO);
+          sessionStorage.removeItem(CHAVE_SESSAO);
+        }
+      }
+    } catch {
+      localStorage.removeItem(CHAVE_SESSAO);
+      sessionStorage.removeItem(CHAVE_SESSAO);
+    } finally {
+      setCarregando(false);
     }
-    setCarregando(false);
   }, []);
 
-  function entrar(usuario, token) {
-    setUsuario(usuario);
+  function entrar(usuario, token, manterConectado = false) {
+    const usuarioAtualizado = normalizarPerfilUsuario(usuario);
+    setUsuario(usuarioAtualizado);
     setToken(token);
-    localStorage.setItem("sessao-chamados", JSON.stringify({ usuario, token }));
+    localStorage.removeItem(CHAVE_SESSAO);
+    sessionStorage.removeItem(CHAVE_SESSAO);
+    const armazenamento = manterConectado ? localStorage : sessionStorage;
+    armazenamento.setItem(CHAVE_SESSAO, JSON.stringify({ usuario: usuarioAtualizado, token }));
   }
 
   function sair() {
     setUsuario(null);
     setToken(null);
-    localStorage.removeItem("sessao-chamados");
+    localStorage.removeItem(CHAVE_SESSAO);
+    sessionStorage.removeItem(CHAVE_SESSAO);
   }
 
   return (

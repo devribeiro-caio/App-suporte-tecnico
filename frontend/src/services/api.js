@@ -35,14 +35,23 @@ async function request(path, { method = "GET", body, token } = {}) {
 }
 
 export const AuthService = {
-  login(email, senha) {
-    return request("/auth/login", { method: "POST", body: { email, senha } });
+  login(email, senha, manterConectado) {
+    return request("/auth/login", {
+      method: "POST",
+      body: { email, senha, manterConectado },
+    });
   },
-  registrar(nome, email, senha) {
+  registrar(nome, email, senha, manterConectado) {
     return request("/auth/registrar", {
       method: "POST",
-      body: { nome, email, senha },
+      body: { nome, email, senha, manterConectado },
     });
+  },
+};
+
+export const UsuarioService = {
+  listar(token) {
+    return request("/auth/usuarios", { token });
   },
 };
 

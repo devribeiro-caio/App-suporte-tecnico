@@ -33,7 +33,32 @@
   box-shadow: inset -1px 0 0 rgba(170, 180, 189, 0.25);
 }
 
+.formis-wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  color: #ffffff;
+}
+
+.formis-wordmark strong {
+  font-family: var(--font-display);
+  font-size: 29px;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.formis-wordmark span {
+  color: #d7e5f1;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .ticket-eyebrow {
+  margin-top: 24px;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -164,6 +189,24 @@
 
 .ticket-field input::placeholder {
   color: #a8aaad;
+}
+
+.manter-conectado {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: -4px;
+  color: var(--color-text-on-paper-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.manter-conectado input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
 }
 
 .ticket-error {

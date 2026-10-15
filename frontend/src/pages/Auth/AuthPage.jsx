@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
@@ -11,6 +11,7 @@ export default function AuthPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [manterConectado, setManterConectado] = useState(false);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [serverIp, setServerIp] = useState(localStorage.getItem("SERVER_IP") || "127.0.0.1");
@@ -19,9 +20,46 @@ export default function AuthPage() {
   const { entrar } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let ativo = true;
+    const obterCredenciais = window.suporteDesktop?.obterCredenciaisLembradas;
+    if (typeof obterCredenciais !== "function") {
+      return () => {
+        ativo = false;
+      };
+    }
+
+    obterCredenciais()
+      .then((credenciais) => {
+        if (!ativo || !credenciais) return;
+        setEmail(credenciais.email);
+        setSenha(credenciais.senha);
+        setManterConectado(true);
+      })
+      .catch((e) => {
+        if (ativo) setErro(`Não foi possível recuperar o login lembrado: ${e.message}`);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
   function trocarAba(novaAba) {
     setAba(novaAba);
     setErro("");
+  }
+
+  async function aoAlterarManterConectado(evento) {
+    const marcado = evento.target.checked;
+    setManterConectado(marcado);
+    if (!marcado) {
+      try {
+        await window.suporteDesktop?.removerCredenciaisLembradas?.();
+      } catch (e) {
+        setErro(`Não foi possível remover o login lembrado: ${e.message}`);
+      }
+    }
   }
 
   async function aoSubmeter(evento) {
@@ -32,11 +70,21 @@ export default function AuthPage() {
     try {
       const resposta =
         aba === ABAS.LOGIN
-          ? await AuthService.login(email, senha)
-          : await AuthService.registrar(nome, email, senha);
+          ? await AuthService.login(email, senha, manterConectado)
+          : await AuthService.registrar(nome, email, senha, manterConectado);
+
+      if (manterConectado) {
+        const salvarCredenciais = window.suporteDesktop?.salvarCredenciaisLembradas;
+        if (typeof salvarCredenciais !== "function") {
+          throw new Error("O armazenamento seguro não está disponível nesta versão do aplicativo.");
+        }
+        await salvarCredenciais({ email: resposta.usuario?.email || email, senha });
+      } else {
+        await window.suporteDesktop?.removerCredenciaisLembradas?.();
+      }
 
       localStorage.setItem("SERVER_IP", serverIp);
-      entrar(resposta.usuario, resposta.token);
+      entrar(resposta.usuario, resposta.token, manterConectado);
       navigate("/dashboard");
     } catch (e) {
       setErro(e.message);
@@ -49,6 +97,10 @@ export default function AuthPage() {
     <div className="auth-page">
       <div className="ticket-card">
         <aside className="ticket-stub">
+          <div className="formis-wordmark" aria-label="Formis Instrumentos de Medição">
+            <strong>FORMIS</strong>
+            <span>Instrumentos de medição</span>
+          </div>
           <span className="ticket-eyebrow">Sistema de Chamados</span>
 
           <div className="ticket-number">
@@ -57,7 +109,7 @@ export default function AuthPage() {
           </div>
 
           <p className="ticket-tagline">
-            Abra, acompanhe e resolva chamados da sua equipe em um só lugar.
+            A vida é nosso compromisso. Abra, acompanhe e resolva chamados da sua equipe em um só lugar.
           </p>
 
           <div style={{ marginTop: '20px', fontSize: '12px', opacity: 0.8 }}>
@@ -151,6 +203,7 @@ export default function AuthPage() {
               <span>Email</span>
               <input
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voce@empresa.com"
@@ -162,12 +215,22 @@ export default function AuthPage() {
               <span>Senha</span>
               <input
                 type="password"
+                autoComplete={aba === ABAS.LOGIN ? "current-password" : "new-password"}
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••"
                 minLength={6}
                 required
               />
+            </label>
+
+            <label className="manter-conectado">
+              <input
+                type="checkbox"
+                checked={manterConectado}
+                onChange={aoAlterarManterConectado}
+              />
+              <span>Lembrar login e senha com segurança por até 30 dias</span>
             </label>
 
             {erro && (
