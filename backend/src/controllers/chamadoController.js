@@ -56,13 +56,28 @@ const ChamadoController = {
 
   async criar(req, res) {
     try {
-      const { titulo, descricao, prioridade, destinatarioEmail } = req.body;
+      const { titulo, descricao, tipoChamado, dataOcorrencia, prioridade, destinatarioEmail } = req.body;
       const solicitante = await Usuario.findById(req.usuario.id).select("email");
 
       if (!titulo || !descricao || !destinatarioEmail) {
         return res.status(400).json({
           erro: "Titulo, descricao e destinatario sao obrigatorios",
         });
+      }
+
+      const tiposChamadoValidos = ["SAC", "Ocorrência Interna", "Atendimento ao cliente"];
+      if (!tiposChamadoValidos.includes(tipoChamado)) {
+        return res.status(400).json({ erro: "Selecione um tipo de chamado válido" });
+      }
+
+      const dataOcorrenciaDate = new Date(`${dataOcorrencia}T00:00:00.000Z`);
+      const dataOcorrenciaValida =
+        typeof dataOcorrencia === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(dataOcorrencia) &&
+        !Number.isNaN(dataOcorrenciaDate.getTime()) &&
+        dataOcorrenciaDate.toISOString().slice(0, 10) === dataOcorrencia;
+      if (!dataOcorrenciaValida) {
+        return res.status(400).json({ erro: "Informe uma data de ocorrência válida" });
       }
 
       if (!solicitante) {
@@ -90,6 +105,8 @@ const ChamadoController = {
       const chamado = await Chamado.create({
         titulo,
         descricao,
+        tipoChamado,
+        dataOcorrencia,
         prioridade,
         solicitante: solicitante._id,
         destinatario: destinatario._id,

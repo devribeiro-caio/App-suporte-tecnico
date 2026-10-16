@@ -312,6 +312,21 @@
   font-size: 14.5px;
 }
 
+.chamado-tipo-data {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin: 0 0 8px;
+  color: var(--color-text-on-paper-dim);
+  font-size: 11px;
+}
+
+.chamado-tipo-data span:first-child {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 .chamado-descricao {
   margin: 0 0 10px;
   font-size: 13px;

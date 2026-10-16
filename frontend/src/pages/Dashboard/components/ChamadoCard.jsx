@@ -21,6 +21,10 @@ function formatarDuracao(milisegundos) {
   return dias > 0 ? `${dias}d ${horario}` : horario;
 }
 
+function formatarDataOcorrencia(valor) {
+  return valor ? valor.split("-").reverse().join("/") : "Não informada";
+}
+
 export default function ChamadoCard({
   chamado,
   arrastavel,
@@ -56,6 +60,10 @@ export default function ChamadoCard({
       </header>
 
       <h3 className="chamado-titulo">{chamado.titulo}</h3>
+      <p className="chamado-tipo-data">
+        <span>{chamado.tipoChamado || "Tipo não informado"}</span>
+        <span>Ocorrência: {formatarDataOcorrencia(chamado.dataOcorrencia)}</span>
+      </p>
       <p className="chamado-descricao">{chamado.descricao}</p>
 
       {duracao && (

@@ -22,7 +22,7 @@ const COLUNAS = [
   { status: "resolvido", titulo: "Resolvido" },
 ];
 
-// Contexto de ÃƒÂ¡udio global para reutilizaÃƒÂ§ÃƒÂ£o
+// Contexto de Àudio global para reutilização
 let audioCtx = null;
 
 function getAudioContext() {
@@ -35,7 +35,7 @@ function getAudioContext() {
   return audioCtx;
 }
 
-// Tom de notificaÃƒÂ§ÃƒÂ£o em Web Audio API
+// Tom de notificação em Web Audio API
 function tocarSomNotificacao() {
   try {
     const ctx = getAudioContext();
@@ -58,7 +58,7 @@ function tocarSomNotificacao() {
       osc.stop(ctx.currentTime + inicio + duracao);
     }
 
-    // Som de notificaÃƒÂ§ÃƒÂ£o: Ding-dong alegre
+    // Som de notificação: Ding-dong alegre
     tocarTom(660, 0, 0.2, 0.4);
     tocarTom(880, 0.15, 0.4, 0.4);
   } catch (e) {
@@ -66,7 +66,7 @@ function tocarSomNotificacao() {
   }
 }
 
-// Som para atualizaÃƒÂ§ÃƒÂ£o (tom mais suave)
+// Som para atualização (tom mais suave)
 function tocarSomAtualizacao() {
   try {
     const ctx = getAudioContext();
@@ -181,7 +181,7 @@ function criarArquivoXlsx(arquivos) {
 }
 
 export default function DashboardPage() {
-  const { usuario, token, sair } = useAuth();
+  const { usuario, token, sair, carregando: carregandoSessao } = useAuth();
   const [chamados, setChamados] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [relatorioUsuarioEmail, setRelatorioUsuarioEmail] = useState("");
@@ -191,6 +191,8 @@ export default function DashboardPage() {
   const [erro, setErro] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
   const [chamadoParaResolver, setChamadoParaResolver] = useState(null);
+  const [chamadoParaExcluir, setChamadoParaExcluir] = useState(null);
+  const [excluindoChamado, setExcluindoChamado] = useState(false);
   const [chamadoEmDetalhes, setChamadoEmDetalhes] = useState(null);
   const [chamadoArrastado, setChamadoArrastado] = useState(null);
   const [novaNotificacao, setNovaNotificacao] = useState("");
@@ -243,7 +245,7 @@ export default function DashboardPage() {
     }
   }, [token]);
 
-  // Desbloquear ÃƒÂ¡udio na primeira interaÃƒÂ§ÃƒÂ£o do usuÃƒÂ¡rio
+  // Desbloquear Àudio na primeira interação do usuário
   const desbloquearAudio = useCallback(() => {
     if (!audioUnlocked.current) {
       try {
@@ -257,7 +259,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    // Desbloquear ÃƒÂ¡udio em qualquer clique ou toque
+    // Desbloquear Àudio em qualquer clique ou toque
     window.addEventListener("click", desbloquearAudio, { once: true });
     window.addEventListener("keydown", desbloquearAudio, { once: true });
     return () => {
@@ -327,7 +329,7 @@ export default function DashboardPage() {
         setChamados((atual) => atual.filter((c) => c._id !== id));
       });
 
-      // Polling de seguranÃƒÂ§a a cada 4 segundos para garantir atualizaÃƒÂ§ÃƒÂ£o instantÃƒÂ¢nea sem F5
+      // Polling de segurança a cada 4 segundos para garantir atualização instantanea sem F5
       const intervalo = setInterval(async () => {
         try {
           const dados = await ChamadoService.listar(token);
@@ -354,6 +356,18 @@ export default function DashboardPage() {
       };
     }
   }, [token, carregarChamados, isAdmin, emailUsuarioAtual]);
+
+  if (carregandoSessao) {
+    return (
+      <main
+        role="status"
+        aria-live="polite"
+        style={{ minHeight: "100vh", display: "grid", placeItems: "center", color: "#64748b" }}
+      >
+        Restaurando sua sessão…
+      </main>
+    );
+  }
 
   if (!usuario) {
     return <Navigate to="/" replace />;
@@ -415,11 +429,13 @@ export default function DashboardPage() {
 
         <h2>Detalhamento dos Chamados</h2>
         <table>
-          <thead><tr><th>Data</th><th>Titulo / Descricao</th><th>Solicitante</th><th>Destinatario</th><th>Prioridade</th><th>Status</th><th>Relato da resolucao</th></tr></thead>
+          <thead><tr><th>Data de abertura</th><th>Tipo</th><th>Data da ocorrencia</th><th>Titulo / Descricao</th><th>Solicitante</th><th>Destinatario</th><th>Prioridade</th><th>Status</th><th>Relato da resolucao</th></tr></thead>
           <tbody>
             ${chamadosDoRelatorio.map(c => `
               <tr>
                 <td>${new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
+                <td>${escaparXml(c.tipoChamado || 'N/D')}</td>
+                <td>${escaparXml(c.dataOcorrencia ? dataParaTexto(c.dataOcorrencia) : 'N/D')}</td>
                 <td><b>${escaparXml(c.titulo)}</b><br><small style="color:#666">${escaparXml(c.descricao.substring(0, 60))}...</small></td>
                 <td>${escaparXml(c.solicitante?.nome || 'N/D')}</td>
                 <td>${escaparXml(c.destinatario?.nome || 'N/D')}</td>
@@ -456,9 +472,11 @@ export default function DashboardPage() {
       ["Relatório de Chamados"],
       [`Gerado em ${new Date().toLocaleString("pt-BR")} por ${usuario.nome} — Usuário: ${textoFiltroRelatorio} — Período: ${textoPeriodoRelatorio}`],
       [],
-      ["Data", "Título", "Descrição", "Solicitante", "Destinatário", "Prioridade", "Status", "Relato da resolução"],
+      ["Data de abertura", "Tipo de chamado", "Data da ocorrência", "Título", "Descrição", "Solicitante", "Destinatário", "Prioridade", "Status", "Relato da resolução"],
       ...chamadosDoRelatorio.map((chamado) => [
         chamado.createdAt ? new Date(chamado.createdAt).toLocaleDateString("pt-BR") : "",
+        chamado.tipoChamado || "N/D",
+        chamado.dataOcorrencia ? dataParaTexto(chamado.dataOcorrencia) : "N/D",
         chamado.titulo || "",
         chamado.descricao || "",
         chamado.solicitante?.nome || "N/D",
@@ -477,7 +495,7 @@ export default function DashboardPage() {
       }).join("");
       return `<row r="${numeroLinha}">${celulas}</row>`;
     }).join("");
-    const planilhaXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:H${ultimaLinha}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="3" width="36" customWidth="1"/><col min="4" max="5" width="24" customWidth="1"/><col min="6" max="7" width="20" customWidth="1"/><col min="8" max="8" width="40" customWidth="1"/></cols><sheetData>${linhasXml}</sheetData><autoFilter ref="A4:H${ultimaLinha}"/></worksheet>`;
+    const planilhaXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:J${ultimaLinha}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="16" customWidth="1"/><col min="2" max="3" width="24" customWidth="1"/><col min="4" max="5" width="36" customWidth="1"/><col min="6" max="7" width="24" customWidth="1"/><col min="8" max="9" width="20" customWidth="1"/><col min="10" max="10" width="40" customWidth="1"/></cols><sheetData>${linhasXml}</sheetData><autoFilter ref="A4:J${ultimaLinha}"/></worksheet>`;
     const arquivos = [
       ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`],
       ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
@@ -557,7 +575,7 @@ export default function DashboardPage() {
   async function atualizarStatus(chamado, novoStatus, relatoResolucao) {
     const idMovido = chamado._id;
 
-    // AtualizaÃƒÂ§ÃƒÂ£o otimista
+    // atualização otimista
     setChamados((atual) =>
       atual.map((c) =>
         c._id === idMovido
@@ -596,16 +614,22 @@ export default function DashboardPage() {
   }
 
   async function aoExcluirChamado(chamado) {
-    const confirmou = window.confirm(
-      `Excluir definitivamente o chamado "${chamado.titulo}"?`
-    );
-    if (!confirmou) return;
+    setChamadoParaExcluir(chamado);
+  }
 
+  async function confirmarExclusaoChamado() {
+    const chamado = chamadoParaExcluir;
+    if (!chamado || excluindoChamado) return;
+
+    setExcluindoChamado(true);
     try {
       await ChamadoService.remover(chamado._id, token);
       setChamados((atual) => atual.filter((c) => c._id !== chamado._id));
+      setChamadoParaExcluir(null);
     } catch (e) {
       setErro(e.message);
+    } finally {
+      setExcluindoChamado(false);
     }
   }
 
@@ -732,7 +756,7 @@ export default function DashboardPage() {
       {novaNotificacao && (
         <div className="notification-toast">
           <div className="notification-content">
-            <span className="notification-icon">Ã°Å¸â€â€</span>
+            <span className="notification-icon">{"\u{1F514}"}</span>
             {novaNotificacao}
           </div>
         </div>
@@ -741,13 +765,13 @@ export default function DashboardPage() {
       {erro && (
         <div className="error-banner">
           {erro}
-          <button onClick={() => setErro("")}>Ã¢Å“â€¢</button>
+          <button onClick={() => setErro("")}>{"\u00D7"}</button>
         </div>
       )}
 
 
       {carregando ? (
-        <div className="loading-container">Carregando chamadosÃ¢â‚¬Â¦</div>
+        <div className="loading-container">Carregando chamados{"\u2026"}</div>
       ) : (
         <div className="kanban-board">
           {COLUNAS.map((coluna) => (
@@ -781,6 +805,44 @@ export default function DashboardPage() {
           chamado={chamadoEmDetalhes}
           onFechar={() => setChamadoEmDetalhes(null)}
         />
+      )}
+
+      {chamadoParaExcluir && (
+        <div
+          className="modal-overlay"
+          onMouseDown={excluindoChamado ? undefined : () => setChamadoParaExcluir(null)}
+        >
+          <section
+            className="modal-box"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-exclusao-titulo"
+            onMouseDown={(evento) => evento.stopPropagation()}
+          >
+            <h2 id="confirmar-exclusao-titulo">Excluir chamado?</h2>
+            <p className="modal-description">
+              Esta ação excluirá definitivamente “{chamadoParaExcluir.titulo}”.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-cancelar"
+                onClick={() => setChamadoParaExcluir(null)}
+                disabled={excluindoChamado}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="chamado-excluir"
+                onClick={confirmarExclusaoChamado}
+                disabled={excluindoChamado}
+              >
+                {excluindoChamado ? "Excluindo..." : "Excluir definitivamente"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {chamadoParaResolver && (

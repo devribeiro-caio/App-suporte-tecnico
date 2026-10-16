@@ -1,8 +1,18 @@
 import { useMemo, useState } from "react";
 
+function dataLocalHoje() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoje.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onCriar }) {
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [tipoChamado, setTipoChamado] = useState("");
+  const [dataOcorrencia, setDataOcorrencia] = useState(dataLocalHoje);
   const [prioridade, setPrioridade] = useState("media");
   const [destinatarioEmail, setDestinatarioEmail] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -20,7 +30,7 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
     setEnviando(true);
 
     try {
-      await onCriar({ titulo, descricao, prioridade, destinatarioEmail });
+      await onCriar({ titulo, descricao, tipoChamado, dataOcorrencia, prioridade, destinatarioEmail });
       onFechar();
     } catch (error) {
       setErro(error.message);
@@ -43,6 +53,26 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
           <label className="ticket-field">
             <span>Descricao</span>
             <textarea value={descricao} onChange={(event) => setDescricao(event.target.value)} rows={5} required />
+          </label>
+
+          <label className="ticket-field">
+            <span>Tipo de chamado</span>
+            <select value={tipoChamado} onChange={(event) => setTipoChamado(event.target.value)} required>
+              <option value="" disabled>Selecione o tipo</option>
+              <option value="SAC">SAC</option>
+              <option value="Ocorrência Interna">Ocorrência Interna</option>
+              <option value="Atendimento ao cliente">Atendimento ao cliente</option>
+            </select>
+          </label>
+
+          <label className="ticket-field">
+            <span>Data da ocorrência</span>
+            <input
+              type="date"
+              value={dataOcorrencia}
+              onChange={(event) => setDataOcorrencia(event.target.value)}
+              required
+            />
           </label>
 
           <label className="ticket-field">

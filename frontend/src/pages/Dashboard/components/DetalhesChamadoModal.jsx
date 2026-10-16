@@ -13,6 +13,9 @@ export default function DetalhesChamadoModal({ chamado, onFechar }) {
     em_andamento: "Em andamento",
     resolvido: "Resolvido",
   };
+  const dataOcorrencia = chamado.dataOcorrencia
+    ? chamado.dataOcorrencia.split("-").reverse().join("/")
+    : "Não informada";
 
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={onFechar}>
@@ -41,6 +44,14 @@ export default function DetalhesChamadoModal({ chamado, onFechar }) {
           <div>
             <dt>Prioridade</dt>
             <dd>{prioridade[chamado.prioridade] || chamado.prioridade}</dd>
+          </div>
+          <div>
+            <dt>Tipo de chamado</dt>
+            <dd>{chamado.tipoChamado || "Não informado"}</dd>
+          </div>
+          <div>
+            <dt>Data da ocorrência</dt>
+            <dd>{dataOcorrencia}</dd>
           </div>
           <div>
             <dt>Solicitante</dt>

@@ -11,6 +11,15 @@ const chamadoSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    tipoChamado: {
+      type: String,
+      enum: ["SAC", "Ocorrência Interna", "Atendimento ao cliente"],
+      default: null,
+    },
+    dataOcorrencia: {
+      type: String,
+      default: null,
+    },
     status: {
       type: String,
       enum: ["aberto", "em_andamento", "resolvido", "fechado"],
