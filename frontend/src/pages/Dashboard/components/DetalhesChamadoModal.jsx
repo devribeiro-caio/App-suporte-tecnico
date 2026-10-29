@@ -1,5 +1,35 @@
-export default function DetalhesChamadoModal({ chamado, onFechar }) {
+export default function DetalhesChamadoModal({
+  chamado,
+  usuarios = [],
+  podeRedirecionar = false,
+  redirecionando = false,
+  onRedirecionar,
+  onFechar,
+}) {
   if (!chamado) return null;
+
+  const idDestinatarioAtual = String(
+    chamado.destinatario?._id || chamado.destinatario?.id || chamado.destinatario || ""
+  );
+  const idSolicitante = String(
+    chamado.solicitante?._id || chamado.solicitante?.id || chamado.solicitante || ""
+  );
+  const usuariosParaRedirecionar = usuarios.filter(
+    (usuario) => String(usuario._id || usuario.id || "") !== idSolicitante
+  );
+
+  async function redirecionarChamado(event) {
+    event.preventDefault();
+    const formulario = event.currentTarget;
+    const novoDestinatarioId = formulario.elements.destinatario.value;
+    if (!novoDestinatarioId || novoDestinatarioId === idDestinatarioAtual) return;
+
+    try {
+      await onRedirecionar(chamado._id, novoDestinatarioId);
+    } catch {
+      // O painel exibe o erro da API no aviso global.
+    }
+  }
 
   const prioridade = {
     baixa: "Baixa",
@@ -66,6 +96,46 @@ export default function DetalhesChamadoModal({ chamado, onFechar }) {
             <dd>{chamado.responsavel?.nome || "Nao atribuido"}</dd>
           </div>
         </dl>
+
+        {podeRedirecionar && (
+          <form className="detalhes-redirecionamento" onSubmit={redirecionarChamado}>
+            <h3>Redirecionar chamado</h3>
+            <label htmlFor="novo-destinatario-chamado">Novo destinatário</label>
+            <select
+              id="novo-destinatario-chamado"
+              name="destinatario"
+              defaultValue={idDestinatarioAtual}
+              disabled={redirecionando || usuariosParaRedirecionar.length === 0}
+            >
+              {usuariosParaRedirecionar.map((usuario) => {
+                const idUsuario = String(usuario._id || usuario.id);
+                return (
+                  <option key={idUsuario} value={idUsuario}>
+                    {usuario.nome} — {usuario.email}
+                  </option>
+                );
+              })}
+            </select>
+            {usuariosParaRedirecionar.length === 0 && (
+              <p className="detalhes-redirecionamento-ajuda">
+                Não há outros usuários cadastrados para receber este chamado.
+              </p>
+            )}
+            <div className="modal-actions">
+              <button
+                type="submit"
+                className="ticket-submit"
+                disabled={
+                  redirecionando ||
+                  usuariosParaRedirecionar.length === 0 ||
+                  idDestinatarioAtual === idSolicitante
+                }
+              >
+                {redirecionando ? "Redirecionando..." : "Confirmar destinatário"}
+              </button>
+            </div>
+          </form>
+        )}
 
         <section className="detalhes-chamado-conteudo">
           <h3>Descricao do chamado</h3>

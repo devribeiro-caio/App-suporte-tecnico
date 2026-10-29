@@ -9,6 +9,8 @@ const fs = require('fs');
 
 const ROOT = __dirname;
 
+
+
 console.log('\n╔══════════════════════════════════════════════════════╗');
 console.log('║  GERANDO INSTALADOR NSIS                             ║');
 console.log('╚══════════════════════════════════════════════════════╝\n');

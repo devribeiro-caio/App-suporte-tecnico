@@ -65,7 +65,7 @@ const ChamadoController = {
         });
       }
 
-      const tiposChamadoValidos = ["SAC", "Ocorrência Interna", "Atendimento ao cliente"];
+      const tiposChamadoValidos = ["SAC", "Ocorrência Interna", "Atendimento ao cliente", "Pós Venda"];
       if (!tiposChamadoValidos.includes(tipoChamado)) {
         return res.status(400).json({ erro: "Selecione um tipo de chamado válido" });
       }
@@ -126,7 +126,7 @@ const ChamadoController = {
   // Participantes podem mover seus chamados; suporte/admin mantém gestão global.
   async atualizar(req, res) {
     try {
-      const { status, prioridade, responsavel, relatoResolucao } = req.body;
+      const { status, prioridade, responsavel, relatoResolucao, destinatario } = req.body;
 
       const chamado = await Chamado.findById(req.params.id);
       if (!chamado) {
@@ -138,6 +138,8 @@ const ChamadoController = {
         (participante) => String(participante?._id || participante) === idUsuarioAtual
       );
       const podeGerenciarTodos = ["admin", "tecnico"].includes(req.usuario.perfil);
+      const podeRedirecionarDestinatario = podeGerenciarTodos ||
+        String(chamado.destinatario?._id || chamado.destinatario || "") === idUsuarioAtual;
       const podeRegistrarRelato = req.usuario.perfil === "admin" || participanteDoChamado;
 
       if (!podeGerenciarTodos && !participanteDoChamado) {
@@ -146,6 +148,9 @@ const ChamadoController = {
 
       if (!podeGerenciarTodos && (prioridade !== undefined || responsavel !== undefined)) {
         return res.status(403).json({ erro: "Somente suporte pode alterar prioridade ou responsável" });
+      }
+      if (destinatario !== undefined && !podeRedirecionarDestinatario) {
+        return res.status(403).json({ erro: "Somente o destinatário atual ou suporte pode redirecionar este chamado" });
       }
 
       const statusValidos = ["aberto", "em_andamento", "resolvido", "fechado"];
@@ -208,6 +213,20 @@ const ChamadoController = {
       if (status !== undefined) chamado.status = status;
       if (prioridade !== undefined) chamado.prioridade = prioridade;
       if (responsavel !== undefined) chamado.responsavel = responsavel;
+      if (destinatario !== undefined) {
+        const destinatarioId = String(destinatario);
+        if (!/^[a-f\d]{24}$/i.test(destinatarioId)) {
+          return res.status(400).json({ erro: "Selecione um destinatário válido" });
+        }
+        if (destinatarioId === String(chamado.solicitante)) {
+          return res.status(400).json({ erro: "O solicitante não pode ser o destinatário do próprio chamado" });
+        }
+        const novoDestinatario = await Usuario.findById(destinatarioId).select("_id");
+        if (!novoDestinatario) {
+          return res.status(400).json({ erro: "O destinatário selecionado não possui cadastro no sistema" });
+        }
+        chamado.destinatario = novoDestinatario._id;
+      }
 
       await chamado.save();
 

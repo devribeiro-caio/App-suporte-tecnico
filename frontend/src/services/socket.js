@@ -88,11 +88,18 @@ export function onChamadoRemovido(callback) {
   }
 }
 
+export function onNovaReuniao(callback) {
+  if (socket) {
+    socket.on("reuniao-criada", callback);
+  }
+}
+
 export function removerTodosListeners() {
   if (socket) {
     socket.off("novo-chamado");
     socket.off("chamado-atualizado");
     socket.off("chamado-removido");
+    socket.off("reuniao-criada");
     console.log("[Socket] Todos os listeners removidos.");
   }
 }

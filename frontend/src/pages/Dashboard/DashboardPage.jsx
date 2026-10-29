@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { ChamadoService, UsuarioService } from "../../services/api";
+import { ChamadoService, ReuniaoService, UsuarioService } from "../../services/api";
 import {
   conectarSocket,
   onNovoChamado,
   onChamadoAtualizado,
   onChamadoRemovido,
+  onNovaReuniao,
   removerTodosListeners,
   desconectarSocket,
 } from "../../services/socket";
@@ -14,6 +15,7 @@ import KanbanColumn from "./components/KanbanColumn";
 import NovoChamadoModal from "./components/NovoChamadoModal";
 import RelatoResolucaoModal from "./components/RelatoResolucaoModal";
 import DetalhesChamadoModal from "./components/DetalhesChamadoModal";
+import AgendaReunioesModal from "./components/AgendaReunioesModal";
 import "./DashboardPage.css";
 
 const COLUNAS = [
@@ -114,6 +116,18 @@ function dataParaTexto(valor) {
   return `${dia}/${mes}/${ano}`;
 }
 
+function exibirAlertaReuniao(titulo, mensagem, atualizarToast) {
+  atualizarToast(mensagem);
+  window.setTimeout(() => atualizarToast(""), 8000);
+  try {
+    if ("Notification" in window && window.Notification.permission !== "denied") {
+      new window.Notification(titulo, { body: mensagem });
+    }
+  } catch {
+    // O aviso no painel continua disponível se o Windows não permitir a notificação nativa.
+  }
+}
+
 function calcularCrc32(bytes) {
   let crc = 0xffffffff;
   for (const byte of bytes) {
@@ -190,15 +204,18 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
+  const [agendaAberta, setAgendaAberta] = useState(false);
   const [chamadoParaResolver, setChamadoParaResolver] = useState(null);
   const [chamadoParaExcluir, setChamadoParaExcluir] = useState(null);
   const [excluindoChamado, setExcluindoChamado] = useState(false);
   const [chamadoEmDetalhes, setChamadoEmDetalhes] = useState(null);
+  const [redirecionandoDestinatario, setRedirecionandoDestinatario] = useState(false);
   const [chamadoArrastado, setChamadoArrastado] = useState(null);
   const [novaNotificacao, setNovaNotificacao] = useState("");
   const [contadorNovos, setContadorNovos] = useState(0);
   const audioUnlocked = useRef(false);
   const chamadosCarregadosRef = useRef(false);
+  const verificandoReunioesRef = useRef(false);
 
   const isAdmin = usuario?.perfil === "admin" || usuario?.perfil === "tecnico";
   const eAdministrador = usuario?.perfil === "admin";
@@ -244,6 +261,70 @@ export default function DashboardPage() {
       setCarregando(false);
     }
   }, [token]);
+
+  const verificarNotificacoesReunioes = useCallback(async () => {
+    if (!token || verificandoReunioesRef.current) return;
+    verificandoReunioesRef.current = true;
+    try {
+      const convites = await ReuniaoService.listarConvitesPendentes(token);
+      for (const reuniao of convites) {
+        const resultado = await ReuniaoService.marcarConviteNotificado(reuniao._id, token);
+        if (!resultado.notificada) continue;
+        const horario = new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(reuniao.dataHora));
+        const organizador = reuniao.criadoPor?.nome ? ` por ${reuniao.criadoPor.nome}` : "";
+        exibirAlertaReuniao(
+          "Novo convite para reunião",
+          `Você foi convidado${organizador} para “${reuniao.titulo}” em ${horario}.`,
+          setNovaNotificacao
+        );
+      }
+
+      const antecipados = await ReuniaoService.listarPendentesAntecipados(token);
+      for (const reuniao of antecipados) {
+        const resultado = await ReuniaoService.marcarAntecipadaNotificada(reuniao._id, token);
+        if (!resultado.notificada) continue;
+        const horarioInicio = new Date(reuniao.dataHora);
+        const minutosRestantes = Math.max(1, Math.ceil((horarioInicio.getTime() - Date.now()) / 60_000));
+        const horario = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(horarioInicio);
+        const unidade = minutosRestantes === 1 ? "minuto" : "minutos";
+        exibirAlertaReuniao(
+          "Reunião em breve",
+          `A reunião “${reuniao.titulo}” começa em ${minutosRestantes} ${unidade} (às ${horario}).`,
+          setNovaNotificacao
+        );
+      }
+
+      const pendentes = await ReuniaoService.listarPendentes(token);
+      for (const reuniao of pendentes) {
+        const resultado = await ReuniaoService.marcarNotificada(reuniao._id, token);
+        if (!resultado.notificada) continue;
+
+        const horario = new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(reuniao.dataHora));
+        exibirAlertaReuniao(
+          "Lembrete de reunião",
+          `Reunião: ${reuniao.titulo} — agendada para ${horario}.`,
+          setNovaNotificacao
+        );
+      }
+    } catch (error) {
+      console.warn("Não foi possível verificar os lembretes de reunião:", error.message);
+    } finally {
+      verificandoReunioesRef.current = false;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    verificarNotificacoesReunioes();
+    const intervalo = window.setInterval(verificarNotificacoesReunioes, 10_000);
+    return () => window.clearInterval(intervalo);
+  }, [token, verificarNotificacoesReunioes]);
 
   // Desbloquear Àudio na primeira interação do usuário
   const desbloquearAudio = useCallback(() => {
@@ -327,6 +408,24 @@ export default function DashboardPage() {
       // Escutar chamado removido
       onChamadoRemovido(({ id }) => {
         setChamados((atual) => atual.filter((c) => c._id !== id));
+      });
+
+      onNovaReuniao((reuniao) => {
+        ReuniaoService.marcarConviteNotificado(reuniao._id, token)
+          .then((resultado) => {
+            if (!resultado.notificada) return;
+            const horario = new Intl.DateTimeFormat("pt-BR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            }).format(new Date(reuniao.dataHora));
+            const organizador = reuniao.criadoPor?.nome ? ` por ${reuniao.criadoPor.nome}` : "";
+            exibirAlertaReuniao(
+              "Novo convite para reunião",
+              `Você foi convidado${organizador} para “${reuniao.titulo}” em ${horario}.`,
+              setNovaNotificacao
+            );
+          })
+          .catch((error) => console.warn("Não foi possível confirmar o convite:", error.message));
       });
 
       // Polling de segurança a cada 4 segundos para garantir atualização instantanea sem F5
@@ -605,6 +704,41 @@ export default function DashboardPage() {
     }
   }
 
+  async function aoRedirecionarDestinatario(chamadoId, destinatarioId) {
+    if (redirecionandoDestinatario) return;
+
+    setRedirecionandoDestinatario(true);
+    try {
+      const atualizado = await ChamadoService.atualizarDestinatario(
+        chamadoId,
+        destinatarioId,
+        token
+      );
+      setChamados((atual) =>
+        isAdmin
+          ? atual.map((item) => (item._id === chamadoId ? atualizado : item))
+          : atual.filter((item) => item._id !== chamadoId)
+      );
+
+      if (isAdmin) {
+        setChamadoEmDetalhes(atualizado);
+      } else {
+        setChamadoEmDetalhes(null);
+      }
+
+      setNovaNotificacao(
+        `Chamado redirecionado para ${atualizado.destinatario?.nome || "o novo destinatário"}.`
+      );
+      window.setTimeout(() => setNovaNotificacao(""), 5000);
+      return atualizado;
+    } catch (e) {
+      setErro(e.message || "Não foi possível redirecionar o chamado.");
+      throw e;
+    } finally {
+      setRedirecionandoDestinatario(false);
+    }
+  }
+
   async function aoConfirmarResolucao(relatoResolucao) {
     const chamado = chamadoParaResolver;
     if (!chamado) return;
@@ -694,6 +828,21 @@ export default function DashboardPage() {
           </button>
           <button className="ticket-submit" onClick={() => setModalAberto(true)}>
             + Novo chamado
+          </button>
+          <button
+            type="button"
+            className="agenda-abrir-botao"
+            onClick={() => {
+              if (
+                "Notification" in window &&
+                window.Notification.permission === "default"
+              ) {
+                window.Notification.requestPermission().catch(() => {});
+              }
+              setAgendaAberta(true);
+            }}
+          >
+            Agenda de reuniões
           </button>
           <button className="modal-cancelar" onClick={sair}>
             Sair
@@ -800,9 +949,30 @@ export default function DashboardPage() {
         />
       )}
 
+      {agendaAberta && (
+        <AgendaReunioesModal
+          usuario={usuario}
+          usuarios={usuarios}
+          token={token}
+          onFechar={() => setAgendaAberta(false)}
+        />
+      )}
+
       {chamadoEmDetalhes && (
         <DetalhesChamadoModal
           chamado={chamadoEmDetalhes}
+          usuarios={usuarios}
+          podeRedirecionar={
+            isAdmin ||
+            String(
+              chamadoEmDetalhes.destinatario?._id ||
+                chamadoEmDetalhes.destinatario?.id ||
+                chamadoEmDetalhes.destinatario ||
+                ""
+            ) === idUsuarioAtual
+          }
+          redirecionando={redirecionandoDestinatario}
+          onRedirecionar={aoRedirecionarDestinatario}
           onFechar={() => setChamadoEmDetalhes(null)}
         />
       )}

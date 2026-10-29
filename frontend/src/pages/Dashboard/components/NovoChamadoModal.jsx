@@ -62,6 +62,7 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
               <option value="SAC">SAC</option>
               <option value="Ocorrência Interna">Ocorrência Interna</option>
               <option value="Atendimento ao cliente">Atendimento ao cliente</option>
+              <option value="Pós Venda">Pós Venda</option>
             </select>
           </label>
 

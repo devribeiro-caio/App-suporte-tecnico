@@ -102,4 +102,15 @@ function emitirChamado(evento, chamado, dados = chamado) {
   getIO().to([...salas]).emit(evento, dados);
 }
 
-module.exports = { setupSocket, getIO, emitirChamado };
+function emitirNovaReuniao(reuniao) {
+  if (!io || !reuniao) return;
+  const idDoCriador = String(reuniao.criadoPor?._id || reuniao.criadoPor?.id || reuniao.criadoPor || "");
+  const salas = new Set();
+  for (const participante of reuniao.participantes || []) {
+    const id = String(participante?._id || participante?.id || participante || "");
+    if (id && id !== idDoCriador) salas.add(`usuario:${id}`);
+  }
+  if (salas.size) io.to([...salas]).emit("reuniao-criada", reuniao);
+}
+
+module.exports = { setupSocket, getIO, emitirChamado, emitirNovaReuniao };

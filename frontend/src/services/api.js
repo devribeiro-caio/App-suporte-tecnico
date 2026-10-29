@@ -72,7 +72,47 @@ export const ChamadoService = {
       token,
     });
   },
+  atualizarDestinatario(id, destinatario, token) {
+    return request(`/chamados/${id}`, {
+      method: "PUT",
+      body: { destinatario },
+      token,
+    });
+  },
   remover(id, token) {
     return request(`/chamados/${id}`, { method: "DELETE", token });
+  },
+};
+
+export const ReuniaoService = {
+  listar(token) {
+    return request("/reunioes", { token });
+  },
+  criar(dados, token) {
+    return request("/reunioes", { method: "POST", body: dados, token });
+  },
+  cancelar(id, token) {
+    return request(`/reunioes/${id}/cancelar`, { method: "PATCH", token });
+  },
+  remover(id, token) {
+    return request(`/reunioes/${id}`, { method: "DELETE", token });
+  },
+  listarConvitesPendentes(token) {
+    return request("/reunioes/convites-pendentes", { token });
+  },
+  marcarConviteNotificado(id, token) {
+    return request(`/reunioes/${id}/convite-notificado`, { method: "POST", token });
+  },
+  listarPendentes(token) {
+    return request("/reunioes/pendentes-notificacao", { token });
+  },
+  marcarNotificada(id, token) {
+    return request(`/reunioes/${id}/notificada`, { method: "POST", token });
+  },
+  listarPendentesAntecipados(token) {
+    return request("/reunioes/pendentes-antecipados", { token });
+  },
+  marcarAntecipadaNotificada(id, token) {
+    return request(`/reunioes/${id}/antecipada-notificada`, { method: "POST", token });
   },
 };
