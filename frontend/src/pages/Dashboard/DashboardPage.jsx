@@ -16,13 +16,24 @@ import NovoChamadoModal from "./components/NovoChamadoModal";
 import RelatoResolucaoModal from "./components/RelatoResolucaoModal";
 import DetalhesChamadoModal from "./components/DetalhesChamadoModal";
 import AgendaReunioesModal from "./components/AgendaReunioesModal";
+import AuditoriaExclusoesModal from "./components/AuditoriaExclusoesModal";
+import ChatInterno from "./components/ChatInterno";
 import "./DashboardPage.css";
 
 const COLUNAS = [
   { status: "aberto", titulo: "Aberto" },
   { status: "em_andamento", titulo: "Em andamento" },
   { status: "resolvido", titulo: "Resolvido" },
+  { status: "aguardando_aprovacao", titulo: "Aguardando aprovação" },
+  { status: "finalizado", titulo: "Finalizado" },
 ];
+const TIPOS_COM_APROVACAO = new Set(["SAC", "SUPORTE", "Atendimento ao cliente", "Pós Venda"]);
+const EMAIL_APROVADOR = "formis@formis.com.br";
+const EMAILS_FINALIZADORES = new Set([
+  "formis@formis.com.br",
+  "administrativo@formis.com.br",
+  "laboratorio@formis.com.br",
+]);
 
 // Contexto de Àudio global para reutilização
 let audioCtx = null;
@@ -205,9 +216,11 @@ export default function DashboardPage() {
   const [erro, setErro] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
   const [agendaAberta, setAgendaAberta] = useState(false);
+  const [auditoriaAberta, setAuditoriaAberta] = useState(false);
   const [chamadoParaResolver, setChamadoParaResolver] = useState(null);
   const [chamadoParaExcluir, setChamadoParaExcluir] = useState(null);
   const [excluindoChamado, setExcluindoChamado] = useState(false);
+  const [aprovandoChamado, setAprovandoChamado] = useState(false);
   const [chamadoEmDetalhes, setChamadoEmDetalhes] = useState(null);
   const [redirecionandoDestinatario, setRedirecionandoDestinatario] = useState(false);
   const [chamadoArrastado, setChamadoArrastado] = useState(null);
@@ -220,10 +233,15 @@ export default function DashboardPage() {
   const isAdmin = usuario?.perfil === "admin" || usuario?.perfil === "tecnico";
   const eAdministrador = usuario?.perfil === "admin";
   const emailUsuarioAtual = usuario?.email?.trim().toLowerCase();
+  const podeAprovarChamados = emailUsuarioAtual === EMAIL_APROVADOR;
   const idUsuarioAtual = String(usuario?.id || usuario?._id || "");
   const podeMoverChamado = (chamado) => {
+    if (!chamado) return false;
+    if (chamado.status === "finalizado") return false;
+    if (chamado.status === "aguardando_aprovacao") return isAdmin;
+    if (chamado.status === "resolvido" && EMAILS_FINALIZADORES.has(emailUsuarioAtual)) return true;
     if (isAdmin) return true;
-    if (!idUsuarioAtual || !chamado) return false;
+    if (!idUsuarioAtual) return false;
     return [chamado.solicitante, chamado.destinatario].some((participante) => {
       const idParticipante = participante?._id || participante?.id || participante;
       return String(idParticipante ?? "") === idUsuarioAtual;
@@ -475,7 +493,9 @@ export default function DashboardPage() {
   async function gerarRelatorioPDF() {
     const abertos = chamadosDoRelatorio.filter(c => c.status === 'aberto').length;
     const emAndamento = chamadosDoRelatorio.filter(c => c.status === 'em_andamento').length;
+    const aguardandoAprovacao = chamadosDoRelatorio.filter(c => c.status === 'aguardando_aprovacao').length;
     const resolvidos = chamadosDoRelatorio.filter(c => c.status === 'resolvido').length;
+    const finalizados = chamadosDoRelatorio.filter(c => c.status === 'finalizado').length;
     const total = chamadosDoRelatorio.length;
     const dataAtual = new Date().toLocaleDateString('pt-BR');
 
@@ -500,7 +520,9 @@ export default function DashboardPage() {
           .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
           .badge-aberto { background: #fee2e2; color: #991b1b; }
           .badge-andamento { background: #dbeafe; color: #1e40af; }
+          .badge-aprovacao { background: #fef3c7; color: #92400e; }
           .badge-resolvido { background: #dcfce7; color: #166534; }
+          .badge-finalizado { background: #dbeafe; color: #1e3a8a; }
         </style>
       </head>
       <body>
@@ -521,8 +543,16 @@ export default function DashboardPage() {
             <p id="andamento">${emAndamento}</p>
           </div>
           <div class="stat-card">
+            <h3>Aguardando aprovação</h3>
+            <p id="aguardando-aprovacao">${aguardandoAprovacao}</p>
+          </div>
+          <div class="stat-card">
             <h3>Resolvidos</h3>
             <p id="resolvidos">${resolvidos}</p>
+          </div>
+          <div class="stat-card">
+            <h3>Finalizados</h3>
+            <p id="finalizados">${finalizados}</p>
           </div>
         </div>
 
@@ -539,7 +569,7 @@ export default function DashboardPage() {
                 <td>${escaparXml(c.solicitante?.nome || 'N/D')}</td>
                 <td>${escaparXml(c.destinatario?.nome || 'N/D')}</td>
                 <td>${escaparXml(c.prioridade || 'normal')}</td>
-                <td><span class="badge badge-${c.status === 'aberto' ? 'aberto' : c.status === 'em_andamento' ? 'andamento' : 'resolvido'}">${c.status.toUpperCase()}</span></td>
+                <td><span class="badge badge-${c.status === 'aberto' ? 'aberto' : c.status === 'em_andamento' ? 'andamento' : c.status === 'aguardando_aprovacao' ? 'aprovacao' : c.status === 'finalizado' ? 'finalizado' : 'resolvido'}">${c.status === 'aguardando_aprovacao' ? 'AGUARDANDO APROVAÇÃO' : c.status.toUpperCase()}</span></td>
                 <td>${escaparXml(c.relatoResolucao || String.fromCharCode(8212))}</td>
               </tr>
             `).join('')}
@@ -565,7 +595,10 @@ export default function DashboardPage() {
     const statusLabels = {
       aberto: "Aberto",
       em_andamento: "Em andamento",
+      aguardando_aprovacao: "Aguardando aprovação",
       resolvido: "Resolvido",
+      finalizado: "Finalizado",
+      fechado: "Fechado",
     };
     const linhas = [
       ["Relatório de Chamados"],
@@ -644,6 +677,38 @@ export default function DashboardPage() {
     const chamadoMovido = chamadoArrastado;
     setChamadoArrastado(null);
 
+    if (novoStatus === "aguardando_aprovacao") {
+      setErro("Os chamados entram em aprovação somente após o envio do relato de solução.");
+      return;
+    }
+    if (novoStatus === "finalizado") {
+      if (chamadoMovido.status !== "resolvido") {
+        setErro("Somente chamados resolvidos podem ser finalizados.");
+        return;
+      }
+      if (!EMAILS_FINALIZADORES.has(emailUsuarioAtual)) {
+        setErro("Você não tem permissão para finalizar chamados.");
+        return;
+      }
+      try {
+        await atualizarStatus(chamadoMovido, "finalizado");
+      } catch {
+        // atualizarStatus já apresenta o erro e restaura o card.
+      }
+      return;
+    }
+    if (chamadoMovido.status === "finalizado") {
+      setErro("Um chamado finalizado não pode ser reaberto ou alterado.");
+      return;
+    }
+    if (
+      chamadoMovido.status === "aguardando_aprovacao" &&
+      novoStatus === "resolvido"
+    ) {
+      setErro("Para corrigir a solução, devolva o chamado à coluna Em andamento antes de enviá-lo novamente.");
+      return;
+    }
+
     if (!podeMoverChamado(chamadoMovido)) {
       setErro("Somente o solicitante ou o destinatário podem mover este chamado.");
       return;
@@ -673,6 +738,10 @@ export default function DashboardPage() {
 
   async function atualizarStatus(chamado, novoStatus, relatoResolucao) {
     const idMovido = chamado._id;
+    const statusOtimista =
+      novoStatus === "resolvido" && TIPOS_COM_APROVACAO.has(chamado.tipoChamado)
+        ? "aguardando_aprovacao"
+        : novoStatus;
 
     // atualização otimista
     setChamados((atual) =>
@@ -680,7 +749,7 @@ export default function DashboardPage() {
         c._id === idMovido
           ? {
               ...c,
-              status: novoStatus,
+              status: statusOtimista,
               ...(relatoResolucao ? { relatoResolucao } : {}),
             }
           : c
@@ -697,6 +766,10 @@ export default function DashboardPage() {
       setChamados((atual) =>
         atual.map((item) => (item._id === idMovido ? atualizado : item))
       );
+      if (atualizado.status === "aguardando_aprovacao") {
+        setNovaNotificacao(`Chamado enviado para aprovação de ${EMAIL_APROVADOR}.`);
+        window.setTimeout(() => setNovaNotificacao(""), 5000);
+      }
     } catch (e) {
       setErro(e.message);
       setChamados((atual) => atual.map((c) => (c._id === idMovido ? chamado : c)));
@@ -745,6 +818,28 @@ export default function DashboardPage() {
 
     await atualizarStatus(chamado, "resolvido", relatoResolucao);
     setChamadoParaResolver(null);
+  }
+
+  async function aoAprovarChamado(chamadoId, observacaoAprovacao) {
+    if (!podeAprovarChamados || aprovandoChamado) {
+      throw new Error(`Somente ${EMAIL_APROVADOR} pode aprovar este chamado.`);
+    }
+    setAprovandoChamado(true);
+    try {
+      const atualizado = await ChamadoService.aprovar(chamadoId, token, observacaoAprovacao);
+      setChamados((atuais) => atuais.map((item) =>
+        item._id === chamadoId ? atualizado : item
+      ));
+      setChamadoEmDetalhes(atualizado);
+      setNovaNotificacao(`Chamado aprovado e concluído por ${EMAIL_APROVADOR}.`);
+      window.setTimeout(() => setNovaNotificacao(""), 5000);
+      return atualizado;
+    } catch (e) {
+      setErro(e.message || "Não foi possível aprovar o chamado.");
+      throw e;
+    } finally {
+      setAprovandoChamado(false);
+    }
   }
 
   async function aoExcluirChamado(chamado) {
@@ -829,6 +924,16 @@ export default function DashboardPage() {
           <button className="ticket-submit" onClick={() => setModalAberto(true)}>
             + Novo chamado
           </button>
+          {eAdministrador && (
+            <button
+              type="button"
+              className="agenda-abrir-botao"
+              onClick={() => setAuditoriaAberta(true)}
+              title="Consultar o histórico de exclusões de chamados finalizados"
+            >
+              Auditoria
+            </button>
+          )}
           <button
             type="button"
             className="agenda-abrir-botao"
@@ -958,6 +1063,13 @@ export default function DashboardPage() {
         />
       )}
 
+      {auditoriaAberta && (
+        <AuditoriaExclusoesModal
+          token={token}
+          onFechar={() => setAuditoriaAberta(false)}
+        />
+      )}
+
       {chamadoEmDetalhes && (
         <DetalhesChamadoModal
           chamado={chamadoEmDetalhes}
@@ -972,7 +1084,10 @@ export default function DashboardPage() {
             ) === idUsuarioAtual
           }
           redirecionando={redirecionandoDestinatario}
+          podeAprovar={podeAprovarChamados}
+          aprovando={aprovandoChamado}
           onRedirecionar={aoRedirecionarDestinatario}
+          onAprovar={aoAprovarChamado}
           onFechar={() => setChamadoEmDetalhes(null)}
         />
       )}
@@ -1022,6 +1137,8 @@ export default function DashboardPage() {
           onConfirmar={aoConfirmarResolucao}
         />
       )}
+
+      <ChatInterno usuario={usuario} usuarios={usuarios} token={token} />
 
       <style>{`
         .notification-toast {

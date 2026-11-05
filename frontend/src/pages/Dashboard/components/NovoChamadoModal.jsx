@@ -12,6 +12,7 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [tipoChamado, setTipoChamado] = useState("");
+  const [skuEquipamento, setSkuEquipamento] = useState("");
   const [dataOcorrencia, setDataOcorrencia] = useState(dataLocalHoje);
   const [prioridade, setPrioridade] = useState("media");
   const [destinatarioEmail, setDestinatarioEmail] = useState("");
@@ -30,7 +31,7 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
     setEnviando(true);
 
     try {
-      await onCriar({ titulo, descricao, tipoChamado, dataOcorrencia, prioridade, destinatarioEmail });
+      await onCriar({ titulo, descricao, tipoChamado, skuEquipamento, dataOcorrencia, prioridade, destinatarioEmail });
       onFechar();
     } catch (error) {
       setErro(error.message);
@@ -60,11 +61,24 @@ export default function NovoChamadoModal({ usuario, usuarios = [], onFechar, onC
             <select value={tipoChamado} onChange={(event) => setTipoChamado(event.target.value)} required>
               <option value="" disabled>Selecione o tipo</option>
               <option value="SAC">SAC</option>
-              <option value="Ocorrência Interna">Ocorrência Interna</option>
-              <option value="Atendimento ao cliente">Atendimento ao cliente</option>
-              <option value="Pós Venda">Pós Venda</option>
+              <option value="SUPORTE">SUPORTE</option>
+              <option value="OCORRÊNCIA INTERNA">OCORRÊNCIA INTERNA</option>
+              <option value="TI">TI</option>
+              <option value="TREINAMENTO">TREINAMENTO</option>
             </select>
           </label>
+
+          {tipoChamado === "TREINAMENTO" && (
+            <label className="ticket-field">
+              <span>SKU do equipamento</span>
+              <input
+                value={skuEquipamento}
+                onChange={(event) => setSkuEquipamento(event.target.value)}
+                placeholder="Informe o SKU cadastrado no Bling"
+                required
+              />
+            </label>
+          )}
 
           <label className="ticket-field">
             <span>Data da ocorrência</span>

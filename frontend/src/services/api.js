@@ -24,7 +24,10 @@ async function request(path, { method = "GET", body, token } = {}) {
     const dados = resposta.status !== 204 ? await resposta.json() : null;
 
     if (!resposta.ok) {
-      throw new Error(dados?.erro || "Erro inesperado na requisição");
+      const mensagem = dados?.detalhe
+        ? `${dados.erro || "Erro na requisição"}: ${dados.detalhe}`
+        : dados?.erro || "Erro inesperado na requisição";
+      throw new Error(mensagem);
     }
 
     return dados;
@@ -32,6 +35,22 @@ async function request(path, { method = "GET", body, token } = {}) {
     console.error(`[API] Erro na requisição para ${API_URL}${path}:`, error.message);
     throw error;
   }
+}
+
+async function requestBlob(path, token) {
+  const API_URL = getApiUrl();
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const resposta = await fetch(`${API_URL}${path}`, { headers });
+  if (!resposta.ok) {
+    let dados = null;
+    try {
+      dados = await resposta.json();
+    } catch {}
+    throw new Error(dados?.erro || "Não foi possível baixar o arquivo");
+  }
+  return resposta.blob();
 }
 
 export const AuthService = {
@@ -79,8 +98,54 @@ export const ChamadoService = {
       token,
     });
   },
+  aprovar(id, token, observacaoAprovacao) {
+    return request(`/chamados/${id}/aprovar`, {
+      method: "PATCH",
+      body: { observacaoAprovacao },
+      token,
+    });
+  },
   remover(id, token) {
     return request(`/chamados/${id}`, { method: "DELETE", token });
+  },
+};
+
+export const AuditoriaChamadoService = {
+  listarExclusoesFinalizados(token) {
+    return request("/chamados/auditoria/exclusoes-finalizados", { token });
+  },
+};
+
+export const ChatService = {
+  listarConversas(token) {
+    return request("/chat/conversas", { token });
+  },
+  abrirConversa(destinatarioId, token) {
+    return request("/chat/conversas", {
+      method: "POST",
+      body: { destinatarioId },
+      token,
+    });
+  },
+  listarMensagens(conversaId, token) {
+    return request(`/chat/conversas/${conversaId}/mensagens`, { token });
+  },
+  enviarMensagem(conversaId, dados, token) {
+    return request(`/chat/conversas/${conversaId}/mensagens`, {
+      method: "POST",
+      body: typeof dados === "string" ? { texto: dados } : dados,
+      token,
+    });
+  },
+  baixarArquivo(conversaId, mensagemId, token) {
+    return requestBlob(`/chat/conversas/${conversaId}/mensagens/${mensagemId}/arquivo`, token);
+  },
+  encaminharAudio(conversaId, mensagemId, destinatarioId, token) {
+    return request(`/chat/conversas/${conversaId}/mensagens/${mensagemId}/encaminhar`, {
+      method: "POST",
+      body: { destinatarioId },
+      token,
+    });
   },
 };
 

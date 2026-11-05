@@ -1,9 +1,12 @@
 import { useState } from "react";
 
+const TIPOS_COM_APROVACAO = new Set(["SAC", "SUPORTE", "Atendimento ao cliente", "Pós Venda"]);
+
 export default function RelatoResolucaoModal({ chamado, onFechar, onConfirmar }) {
   const [relato, setRelato] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const exigeAprovacao = TIPOS_COM_APROVACAO.has(chamado.tipoChamado);
 
   async function aoSubmeter(e) {
     e.preventDefault();
@@ -28,9 +31,10 @@ export default function RelatoResolucaoModal({ chamado, onFechar, onConfirmar })
   return (
     <div className="modal-overlay" onClick={enviando ? undefined : onFechar}>
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <h2>Concluir chamado</h2>
+        <h2>{exigeAprovacao ? "Enviar para aprovação" : "Concluir chamado"}</h2>
         <p className="modal-description">
           Registre o problema identificado e a solução aplicada em "{chamado.titulo}".
+          {exigeAprovacao && " O chamado só será concluído depois da aprovação de formis@formis.com.br."}
         </p>
 
         <form onSubmit={aoSubmeter} className="modal-form">
@@ -63,7 +67,9 @@ export default function RelatoResolucaoModal({ chamado, onFechar, onConfirmar })
               Cancelar
             </button>
             <button type="submit" className="ticket-submit" disabled={enviando}>
-              {enviando ? "Concluindo..." : "Concluir chamado"}
+              {enviando
+                ? exigeAprovacao ? "Enviando..." : "Concluindo..."
+                : exigeAprovacao ? "Enviar para aprovação" : "Concluir chamado"}
             </button>
           </div>
         </form>

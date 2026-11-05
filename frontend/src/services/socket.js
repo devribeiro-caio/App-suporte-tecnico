@@ -15,6 +15,7 @@ const getSocketUrl = () => {
 };
 
 let socket = null;
+const listenersChat = new Set();
 
 export function conectarSocket(token) {
   if (socket && socket.connected) {
@@ -33,10 +34,14 @@ export function conectarSocket(token) {
     auth: { token },
     transports: ["websocket", "polling"],
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 2000,
     forceNew: true,
   });
+
+  for (const callback of listenersChat) {
+    socket.on("chat-mensagem", callback);
+  }
 
   socket.on("connect", () => {
     console.log("[Socket] Conectado com sucesso! ID:", socket.id);
@@ -94,12 +99,22 @@ export function onNovaReuniao(callback) {
   }
 }
 
+export function onChatMensagem(callback) {
+  listenersChat.add(callback);
+  if (socket) socket.on("chat-mensagem", callback);
+  return () => {
+    listenersChat.delete(callback);
+    if (socket) socket.off("chat-mensagem", callback);
+  };
+}
+
 export function removerTodosListeners() {
   if (socket) {
     socket.off("novo-chamado");
     socket.off("chamado-atualizado");
     socket.off("chamado-removido");
     socket.off("reuniao-criada");
+    socket.off("chat-mensagem");
     console.log("[Socket] Todos os listeners removidos.");
   }
 }

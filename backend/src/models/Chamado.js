@@ -13,7 +13,12 @@ const chamadoSchema = new mongoose.Schema(
     },
     tipoChamado: {
       type: String,
-      enum: ["SAC", "Ocorrência Interna", "Atendimento ao cliente", "Pós Venda"],
+      enum: ["SAC", "SUPORTE", "OCORRÊNCIA INTERNA", "TI", "TREINAMENTO", "Atendimento ao cliente", "Pós Venda"],
+      default: null,
+    },
+    skuEquipamento: {
+      type: String,
+      trim: true,
       default: null,
     },
     dataOcorrencia: {
@@ -22,7 +27,7 @@ const chamadoSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["aberto", "em_andamento", "resolvido", "fechado"],
+      enum: ["aberto", "em_andamento", "aguardando_aprovacao", "resolvido", "finalizado", "fechado"],
       default: "aberto",
     },
     prioridade: {
@@ -52,6 +57,21 @@ const chamadoSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },    relatoResolucao: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: null,
+    },
+    aprovadoPor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Usuario",
+      default: null,
+    },
+    aprovadoEm: {
+      type: Date,
+      default: null,
+    },
+    observacaoAprovacao: {
       type: String,
       trim: true,
       maxlength: 2000,

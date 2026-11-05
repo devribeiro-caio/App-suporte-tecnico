@@ -88,6 +88,11 @@ function getIO() {
 }
 
 function emitirChamado(evento, chamado, dados = chamado) {
+  if (!io) {
+    console.warn(`[Socket.io] Evento "${evento}" não emitido: Socket.IO não está inicializado.`);
+    return false;
+  }
+
   const salas = new Set(["equipe:suporte"]);
   const idDe = (participante) => {
     if (!participante) return null;
@@ -99,7 +104,28 @@ function emitirChamado(evento, chamado, dados = chamado) {
     if (id) salas.add(`usuario:${id}`);
   }
 
-  getIO().to([...salas]).emit(evento, dados);
+  try {
+    io.to([...salas]).emit(evento, dados);
+    return true;
+  } catch (erro) {
+    console.error(`[Socket.io] Falha ao emitir "${evento}":`, erro.message);
+    return false;
+  }
+}
+
+function emitirMensagemChat(participantes, mensagem) {
+  if (!io || !Array.isArray(participantes) || !mensagem) return false;
+  const salas = [...new Set(participantes.map((id) => String(id || "")).filter(Boolean))]
+    .map((id) => `usuario:${id}`);
+  if (!salas.length) return false;
+
+  try {
+    io.to(salas).emit("chat-mensagem", mensagem);
+    return true;
+  } catch (erro) {
+    console.error("[Socket.io] Falha ao emitir mensagem do chat:", erro.message);
+    return false;
+  }
 }
 
 function emitirNovaReuniao(reuniao) {
@@ -113,4 +139,4 @@ function emitirNovaReuniao(reuniao) {
   if (salas.size) io.to([...salas]).emit("reuniao-criada", reuniao);
 }
 
-module.exports = { setupSocket, getIO, emitirChamado, emitirNovaReuniao };
+module.exports = { setupSocket, getIO, emitirChamado, emitirMensagemChat, emitirNovaReuniao };

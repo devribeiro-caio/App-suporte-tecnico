@@ -86,7 +86,7 @@ export default function ChamadoCard({
         </button>
       </div>
 
-      {chamado.status === "resolvido" && chamado.relatoResolucao && (
+      {["aguardando_aprovacao", "resolvido", "finalizado"].includes(chamado.status) && chamado.relatoResolucao && (
         <section className="chamado-relato" aria-label="Relato da resolucao">
           <strong>Relato da resolucao</strong>
           <p>{chamado.relatoResolucao}</p>
@@ -100,7 +100,7 @@ export default function ChamadoCard({
         {chamado.responsavel && <span>Responsavel: {chamado.responsavel.nome}</span>}
       </footer>
 
-      {podeExcluir && chamado.status === "resolvido" && (
+      {podeExcluir && ["resolvido", "finalizado"].includes(chamado.status) && (
         <div className="chamado-card-actions">
           <button type="button" className="chamado-excluir" onClick={() => onExcluir?.(chamado)}>
             Excluir

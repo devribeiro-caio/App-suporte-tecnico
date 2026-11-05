@@ -9,10 +9,16 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get("/", ChamadoController.listar);
+router.get(
+  "/auditoria/exclusoes-finalizados",
+  roleMiddleware("admin"),
+  ChamadoController.listarAuditoriaExclusoesFinalizados
+);
 router.get("/:id", ChamadoController.buscarPorId);
 router.post("/", ChamadoController.criar); // qualquer perfil pode abrir chamado
 
 // O controller permite participantes atualizarem o próprio status do chamado.
+router.patch("/:id/aprovar", ChamadoController.aprovar);
 router.put("/:id", ChamadoController.atualizar);
 
 // Só admin pode excluir

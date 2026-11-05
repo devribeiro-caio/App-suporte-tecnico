@@ -1,11 +1,18 @@
+import { useState } from "react";
+
 export default function DetalhesChamadoModal({
   chamado,
   usuarios = [],
   podeRedirecionar = false,
   redirecionando = false,
+  podeAprovar = false,
+  aprovando = false,
   onRedirecionar,
+  onAprovar,
   onFechar,
 }) {
+  const [erroAprovacao, setErroAprovacao] = useState("");
+  const [observacaoAprovacao, setObservacaoAprovacao] = useState("");
   if (!chamado) return null;
 
   const idDestinatarioAtual = String(
@@ -31,6 +38,20 @@ export default function DetalhesChamadoModal({
     }
   }
 
+  async function aprovarResolucao() {
+    setErroAprovacao("");
+    const observacaoLimpa = observacaoAprovacao.trim();
+    if (!observacaoLimpa) {
+      setErroAprovacao("Preencha o parecer do administrador antes de aprovar.");
+      return;
+    }
+    try {
+      await onAprovar?.(chamado._id, observacaoLimpa);
+    } catch (error) {
+      setErroAprovacao(error.message || "Não foi possível aprovar o chamado.");
+    }
+  }
+
   const prioridade = {
     baixa: "Baixa",
     media: "Media",
@@ -41,7 +62,9 @@ export default function DetalhesChamadoModal({
   const status = {
     aberto: "Aberto",
     em_andamento: "Em andamento",
+    aguardando_aprovacao: "Aguardando aprovação",
     resolvido: "Resolvido",
+    finalizado: "Finalizado",
   };
   const dataOcorrencia = chamado.dataOcorrencia
     ? chamado.dataOcorrencia.split("-").reverse().join("/")
@@ -79,6 +102,12 @@ export default function DetalhesChamadoModal({
             <dt>Tipo de chamado</dt>
             <dd>{chamado.tipoChamado || "Não informado"}</dd>
           </div>
+          {chamado.skuEquipamento && (
+            <div>
+              <dt>SKU do equipamento</dt>
+              <dd>{chamado.skuEquipamento}</dd>
+            </div>
+          )}
           <div>
             <dt>Data da ocorrência</dt>
             <dd>{dataOcorrencia}</dd>
@@ -146,6 +175,46 @@ export default function DetalhesChamadoModal({
           <section className="detalhes-chamado-conteudo detalhes-chamado-resolucao">
             <h3>Relato da resolucao</h3>
             <p>{chamado.relatoResolucao}</p>
+          </section>
+        )}
+
+        {chamado.status === "aguardando_aprovacao" && (
+          <section className="detalhes-aprovacao">
+            <h3>Aprovação obrigatória</h3>
+            <p>Este chamado só será concluído após aprovação de formis@formis.com.br.</p>
+            {podeAprovar && (
+              <>
+                <label className="ticket-field">
+                  <span>Parecer do administrador</span>
+                  <textarea
+                    value={observacaoAprovacao}
+                    onChange={(event) => setObservacaoAprovacao(event.target.value)}
+                    placeholder="Registre a análise e a decisão para mover o chamado para Resolvido."
+                    rows={4}
+                    maxLength={2000}
+                    required
+                  />
+                </label>
+                {erroAprovacao && <p className="ticket-error" role="alert">{erroAprovacao}</p>}
+                <button
+                  type="button"
+                  className="ticket-submit"
+                  onClick={aprovarResolucao}
+                  disabled={aprovando || !observacaoAprovacao.trim()}
+                >
+                  {aprovando ? "Aprovando..." : "Aprovar e concluir chamado"}
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {chamado.aprovadoPor && (
+          <section className="detalhes-chamado-conteudo">
+            <h3>Aprovação registrada</h3>
+            <p>{chamado.aprovadoPor.nome || chamado.aprovadoPor.email}</p>
+            {chamado.aprovadoEm && <p>{new Date(chamado.aprovadoEm).toLocaleString("pt-BR")}</p>}
+            {chamado.observacaoAprovacao && <p>Parecer: {chamado.observacaoAprovacao}</p>}
           </section>
         )}
 
